@@ -20,23 +20,27 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-def run_bot():
-    """Executa o bot em uma thread separada."""
+@app.on_event("startup")
+async def startup_event():
+    """Inicia o bot de forma assíncrona junto com o FastAPI."""
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         application = bot_main.start_bot()
-        logger.info("Iniciando o Bot Telegram em background...")
-        application.run_polling(close_loop=False)
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling()
+        app.state.bot_app = application
+        logger.info("Bot Telegram iniciado com sucesso no ciclo de vida do FastAPI.")
     except Exception as e:
         logger.error(f"Erro ao iniciar o bot: {e}")
 
-@app.on_event("startup")
-async def startup_event():
-    # Iniciar bot em thread separada para não bloquear o FastAPI
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
-    logger.info("FastAPI iniciado e Bot encaminhado para thread.")
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Finaliza o bot ao desligar o servidor."""
+    if hasattr(app.state, "bot_app"):
+        await app.state.bot_app.updater.stop()
+        await app.state.bot_app.stop()
+        await app.state.bot_app.shutdown()
+        logger.info("Bot Telegram desligado com sucesso.")
 
 # Initialize database
 database.init_db()
