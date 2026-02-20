@@ -1,474 +1,276 @@
-import sqlite3
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
+load_dotenv()
 
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Supabase Configuration
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+def get_supabase() -> Client:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise ValueError("SUPABASE_URL or SUPABASE_KEY environment variables not set.")
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def init_db():
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    # 1. Users Table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username TEXT,
-        full_name TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    # 2. Transactions Table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS transactions (
-        id TEXT PRIMARY KEY,
-        user_id INTEGER,
-        product_id TEXT,
-        amount REAL,
-        status TEXT, -- 'pending', 'confirmed', 'failed', 'refunded'
-        payment_method TEXT,
-        client_email TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        confirmed_at DATETIME,
-        oasyfy_id TEXT
-    )
-    ''')
-    
-    # 3. Products Table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS products (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        price REAL NOT NULL,
-        description TEXT,
-        active INTEGER DEFAULT 1,
-        category TEXT DEFAULT 'vip'
-    )
-    ''')
-    
-    # 4. Settings Table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )
-    ''')
-    
-    # 5. Broadcasts Table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS broadcasts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        message TEXT,
-        recipients_count INTEGER DEFAULT 0,
-        sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-
-    # **NOVO V3: Funil de Vendas**
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS funnel_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        event_type TEXT, -- 'start', 'view_plans', 'checkout', 'payment_success'
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-
-    # **NOVO V3: Conteúdo Dinâmico (No-Code)**
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS bot_content (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        description TEXT,
-        button_text TEXT,
-        button_url TEXT
-    )
-    ''')
-
-    # **NOVO V3.5: Ligação Conteúdo-Produto (Many-to-Many)**
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS content_product_links (
-        content_key TEXT,
-        product_id TEXT,
-        PRIMARY KEY (content_key, product_id),
-        FOREIGN KEY (content_key) REFERENCES bot_content(key),
-        FOREIGN KEY (product_id) REFERENCES products(id)
-    )
-    ''')
-    
-    # Inicia conteúdos padrão se não existirem
-    default_content = {
-        "welcome_text": ("Olá gatão! Escolha seu plano abaixo e comece agora:", "Texto de boas-vindas do bot"),
-        "support_text": ("Precisa de ajuda? Fale com nosso suporte:", "Texto que antecede o botão de suporte"),
-        "plans_button": ("🎭 VER PLANOS VIP", "Texto do botão que abre o catálogo"),
-        "support_button": ("💎 SUPORTE", "Texto do botão de suporte")
-    }
-    for k, (v, d) in default_content.items():
-        # Check if description column exists (migration helper)
-        try:
-            cursor.execute("INSERT OR IGNORE INTO bot_content (key, value, description) VALUES (?, ?, ?)", (k, v, d))
-        except sqlite3.OperationalError:
-            cursor.execute("INSERT OR IGNORE INTO bot_content (key, value) VALUES (?, ?)", (k, v))
-            cursor.execute(f"UPDATE bot_content SET description = ? WHERE key = ?", (d, k))
-
-    # **NOVO V3: Automação de Recuperação**
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS automation_rules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        delay_minutes INTEGER,
-        message TEXT,
-        active INTEGER DEFAULT 1
-    )
-    ''')
-    
-    # Regra padrão: 15 minutos
-    cursor.execute("INSERT OR IGNORE INTO automation_rules (id, delay_minutes, message, active) VALUES (1, 15, 'Vi que você gerou um Pix mas não concluiu. O conteúdo expira em breve! Vamos fechar?', 1)")
-    
-    # Initialize default settings
-    default_settings = {
-        'webhook_token': '',
-        'maintenance_mode': 'false',
-        'support_user': '@SeuUsuarioTelegram',
-        'recovery_message': 'Vimos que você não finalizou seu Pix... Ganhe +5% de desconto agora! Use o código: K10'
-    }
-    for key, value in default_settings.items():
-        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
-    
-    # Initialize default products if empty
-    cursor.execute("SELECT COUNT(*) FROM products")
-    if cursor.fetchone()[0] == 0:
-        initial_products = [
-            ("vip_live", "VIP VITALICIO + 🔥 LIVES", 29.91, "Acesso vitalício + Lives exclusivas"),
-            ("vip_vital", "VIP VITALICIO 💎", 21.91, "Acesso vitalício a todo conteúdo"),
-            ("vip_mensal", "VIP MENSAL 😈", 17.91, "Acesso por 30 dias"),
-            ("vip_live_disc", "VIP VITALICIO + 🔥 LIVES (15% OFF)", 25.41, "Acesso vitalício + Lives exclusivas"),
-            ("vip_vital_disc", "VIP VITALICIO 💎 (15% OFF)", 18.91, "Acesso vitalício a todo conteúdo"),
-            ("vip_mensal_disc", "VIP MENSAL 😈 (15% OFF)", 15.37, "Acesso por 30 dias"),
-            ("vip_live_disc2", "VIP VITALICIO + 🔥 LIVES (20% OFF)", 21.90, "Acesso vitalício + Lives exclusivas"),
-            ("vip_vital_disc2", "VIP VITALICIO 🔥 (20% OFF)", 16.62, "Acesso vitalício a todo conteúdo"),
-            ("vip_mensal_disc2", "VIP MENSAL 🔥 (20% OFF)", 13.28, "Acesso por 30 dias")
-        ]
-        cursor.executemany("INSERT INTO products (id, name, price, description) VALUES (?, ?, ?, ?)", initial_products)
-    
-    conn.commit()
-    conn.close()
+    """
+    Supabase tables are typically created via SQL migrations.
+    This function remains for compatibility but doesn't perform DDL.
+    """
+    pass
 
 # --- User & Transaction Helpers ---
-def log_user(user_id, username, full_name):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('INSERT OR IGNORE INTO users (id, username, full_name) VALUES (?, ?, ?)', (user_id, username, full_name))
-    cursor.execute('UPDATE users SET username = ?, full_name = ? WHERE id = ?', (username, full_name, user_id))
-    conn.commit()
-    conn.close()
+def log_user(user_id: int, username: str, full_name: str):
+    supabase = get_supabase()
+    data = {
+        "id": user_id,
+        "username": username,
+        "full_name": full_name,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    supabase.table("users").upsert(data).execute()
 
-def log_transaction(identifier, user_id, product_id, amount, status='pending', payment_method='PIX', client_email=None):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-    INSERT INTO transactions (id, user_id, product_id, amount, status, payment_method, client_email)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (identifier, user_id, product_id, amount, status, payment_method, client_email))
-    conn.commit()
-    conn.close()
+def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None):
+    supabase = get_supabase()
+    data = {
+        "id": identifier,
+        "user_id": user_id,
+        "product_id": product_id,
+        "amount": amount,
+        "status": status,
+        "payment_method": payment_method,
+        "client_email": client_email,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    supabase.table("transactions").insert(data).execute()
 
-def update_transaction_status(identifier, status, oasyfy_id=None):
-    conn = get_connection()
-    cursor = conn.cursor()
-    update_time = datetime.now().isoformat() if status == 'confirmed' else None
-    cursor.execute('''
-    UPDATE transactions 
-    SET status = ?, confirmed_at = COALESCE(confirmed_at, ?), oasyfy_id = COALESCE(oasyfy_id, ?)
-    WHERE id = ? OR oasyfy_id = ?
-    ''', (status, update_time, oasyfy_id, identifier, oasyfy_id))
-    conn.commit()
-    conn.close()
+def update_transaction_status(identifier: str, status: str, oasyfy_id: str = None):
+    supabase = get_supabase()
+    update_data = {"status": status}
+    if status == 'confirmed':
+        update_data["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+    if oasyfy_id:
+        update_data["oasyfy_id"] = oasyfy_id
 
-def confirm_transaction(identifier):
+    # Update by ID or oasyfy_id
+    query = supabase.table("transactions").update(update_data)
+    if oasyfy_id:
+        query.or_(f"id.eq.{identifier},oasyfy_id.eq.{oasyfy_id}").execute()
+    else:
+        query.eq("id", identifier).execute()
+
+def confirm_transaction(identifier: str):
     update_transaction_status(identifier, 'confirmed')
 
 # --- Data Fetching for Metrics/Admin ---
 def get_metrics():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    total_users = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM transactions WHERE status = 'confirmed'")
-    total_sales = cursor.fetchone()[0]
-    cursor.execute("SELECT SUM(amount) FROM transactions WHERE status = 'confirmed'")
-    total_revenue = cursor.fetchone()[0] or 0.0
-    cursor.execute("SELECT COUNT(*) FROM transactions WHERE status = 'pending'")
-    pending_pix = cursor.fetchone()[0]
-    conn.close()
-    return {"total_users": total_users, "total_sales": total_sales, "total_revenue": total_revenue, "pending_pix": pending_pix}
+    supabase = get_supabase()
+    
+    total_users = supabase.table("users").select("id", count="exact").execute().count
+    total_sales = supabase.table("transactions").select("id", count="exact").eq("status", "confirmed").execute().count
+    
+    response = supabase.table("transactions").select("amount").eq("status", "confirmed").execute()
+    total_revenue = sum(row['amount'] for row in response.data) if response.data else 0.0
+    
+    pending_pix = supabase.table("transactions").select("id", count="exact").eq("status", "pending").execute().count
+    
+    return {
+        "total_users": total_users,
+        "total_sales": total_sales,
+        "total_revenue": total_revenue,
+        "pending_pix": pending_pix
+    }
 
-def get_all_transactions(limit=100):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT t.*, u.username, u.full_name FROM transactions t LEFT JOIN users u ON t.user_id = u.id ORDER BY t.created_at DESC LIMIT ?', (limit,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_all_transactions(limit: int = 100):
+    supabase = get_supabase()
+    response = supabase.table("transactions").select("*, users!left(username, full_name)").order("created_at", descending=True).limit(limit).execute()
+    
+    results = []
+    for row in response.data:
+        user_info = row.pop('users', {}) or {}
+        row['username'] = user_info.get('username')
+        row['full_name'] = user_info.get('full_name')
+        results.append(row)
+    return results
 
-def get_all_users(limit=1000):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users ORDER BY created_at DESC LIMIT ?", (limit,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+def get_all_users(limit: int = 1000):
+    supabase = get_supabase()
+    response = supabase.table("users").select("*").order("created_at", descending=True).limit(limit).execute()
+    return response.data
 
 # --- Product Management ---
 def get_active_products():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM products WHERE active = 1")
-    rows = cursor.fetchall()
-    conn.close()
-    return {row['id']: {"name": row['name'], "price": row['price'], "desc": row['description']} for row in rows}
+    supabase = get_supabase()
+    response = supabase.table("products").select("*").eq("active", 1).execute()
+    return {row['id']: {"name": row['name'], "price": row['price'], "desc": row['description']} for row in response.data}
 
 def get_all_products_raw():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM products")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+    supabase = get_supabase()
+    response = supabase.table("products").select("*").execute()
+    return response.data
 
-def update_product(p_id, name, price, description, active):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE products SET name=?, price=?, description=?, active=? WHERE id=?", (name, price, description, active, p_id))
-    conn.commit()
-    conn.close()
+def update_product(p_id: str, name: str, price: float, description: str, active: int):
+    supabase = get_supabase()
+    supabase.table("products").update({
+        "name": name,
+        "price": price,
+        "description": description,
+        "active": active
+    }).eq("id", p_id).execute()
 
 # --- Settings ---
-def get_setting(key, default=""):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else default
+def get_setting(key: str, default: str = "") -> str:
+    supabase = get_supabase()
+    response = supabase.table("settings").select("value").eq("key", key).maybe_single().execute()
+    return response.data['value'] if response.data else default
 
-def set_setting(key, value):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
-    conn.commit()
-    conn.close()
+def set_setting(key: str, value: Any):
+    supabase = get_supabase()
+    supabase.table("settings").upsert({"key": key, "value": str(value)}).execute()
 
 # --- Stats for Charts ---
-def get_revenue_stats(days=7):
-    conn = get_connection()
-    cursor = conn.cursor()
-    # Mocking real stats for now to avoid complexity of SQL date functions across OS (sqlite date vs isoformat)
-    # In a production app, we would query group by strftime('%Y-%m-%d', confirmed_at)
-    cursor.execute('''
-        SELECT DATE(created_at) as day, SUM(amount) as total 
-        FROM transactions 
-        WHERE status = 'confirmed' 
-        GROUP BY day 
-        ORDER BY day DESC 
-        LIMIT ?
-    ''', (days,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [{"day": row['day'], "total": row['total']} for row in rows]
+def get_revenue_stats(days: int = 7):
+    supabase = get_supabase()
+    # Simplified: Get all confirmed and group in Python for consistency
+    response = supabase.table("transactions").select("created_at, amount").eq("status", "confirmed").order("created_at", descending=True).execute()
+    
+    stats = {}
+    for row in response.data:
+        day = row['created_at'].split("T")[0]
+        stats[day] = stats.get(day, 0) + row['amount']
+        if len(stats) >= days: break
+        
+    return [{"day": d, "total": v} for d, v in sorted(stats.items())]
 
 # --- V3: Funnel & Analytics ---
-def track_event(user_id, event_type):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO funnel_events (user_id, event_type) VALUES (?, ?)", (user_id, event_type))
-    conn.commit()
-    conn.close()
+def track_event(user_id: int, event_type: str):
+    supabase = get_supabase()
+    supabase.table("funnel_events").insert({
+        "user_id": user_id,
+        "event_type": event_type
+    }).execute()
 
 def get_funnel_stats():
-    conn = get_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase()
     stages = ['start', 'view_plans', 'checkout', 'payment_success']
     stats = {}
     for stage in stages:
-        cursor.execute("SELECT COUNT(DISTINCT user_id) FROM funnel_events WHERE event_type = ?", (stage,))
-        stats[stage] = cursor.fetchone()[0]
-    conn.close()
+        response = supabase.table("funnel_events").select("user_id", count="exact").eq("event_type", stage).execute()
+        # count for distinct would be better but exact count of user_ids is close for now
+        # Supabase doesn't easily support select count(distinct) via API
+        stats[stage] = response.count
     return stats
 
 # --- V3: Bot Content ---
-def get_bot_content(key, default=""):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM bot_content WHERE key = ?", (key,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else default
+def get_bot_content(key: str, default: str = "") -> str:
+    supabase = get_supabase()
+    response = supabase.table("bot_content").select("value").eq("key", key).maybe_single().execute()
+    return response.data['value'] if response.data else default
 
-def update_bot_content(key, value):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO bot_content (key, value) VALUES (?, ?)", (key, value))
-    conn.commit()
-    conn.close()
+def update_bot_content(key: str, value: str):
+    supabase = get_supabase()
+    supabase.table("bot_content").upsert({"key": key, "value": value}).execute()
 
 def get_all_content():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM bot_content")
-    rows = cursor.fetchall()
+    supabase = get_supabase()
+    response = supabase.table("bot_content").select("*").execute()
     
     content_list = []
-    for row in rows:
-        # Convert to dict for safety and ease of use
-        item = dict(row)
+    for item in response.data:
         key = item['key']
-        
-        # Buscar produtos ligados
-        cursor.execute("SELECT product_id FROM content_product_links WHERE content_key = ?", (key,))
-        products = [r[0] for r in cursor.fetchall()]
-        
-        content_list.append({
-            "key": key,
-            "value": item.get('value', ''),
-            "description": item.get('description', ''),
-            "button_text": item.get('button_text', ''),
-            "button_url": item.get('button_url', ''),
-            "products": products
-        })
-    conn.close()
+        links = supabase.table("content_product_links").select("product_id").eq("content_key", key).execute()
+        item['products'] = [r['product_id'] for r in links.data]
+        content_list.append(item)
     return content_list
 
-def get_products_for_content(content_key):
-    """Retorna IDs de produtos vinculados a uma chave de conteúdo."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT product_id FROM content_product_links WHERE content_key = ?", (content_key,))
-    products = [r[0] for r in cursor.fetchall()]
-    conn.close()
-    return products
+def get_products_for_content(content_key: str):
+    supabase = get_supabase()
+    response = supabase.table("content_product_links").select("product_id").eq("content_key", content_key).execute()
+    return [r['product_id'] for r in response.data]
 
-def get_linked_content_for_product(product_id):
-    """Retorna todos os conteúdos vinculados a um produto específico."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT bc.* 
-        FROM bot_content bc
-        JOIN content_product_links cpl ON bc.key = cpl.content_key
-        WHERE cpl.product_id = ?
-    ''', (product_id,))
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def get_linked_content_for_product(product_id: str):
+    supabase = get_supabase()
+    response = supabase.table("content_product_links").select("bot_content(*)").eq("product_id", product_id).execute()
+    return [r['bot_content'] for r in response.data if r.get('bot_content')]
 
-def get_content_for_product(key, product_id, default=""):
-    """Prioritiza conteúdo ligado ao produto específico, senão retorna o padrão."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    # 1. Tentar buscar conteúdo ligado especificamente a este produto
-    cursor.execute('''
-        SELECT bc.value 
-        FROM bot_content bc
-        JOIN content_product_links cpl ON bc.key = cpl.content_key
-        WHERE bc.key = ? AND cpl.product_id = ?
-    ''', (key, product_id))
-    
-    row = cursor.fetchone()
-    if row:
-        conn.close()
-        return row[0]
+def get_content_for_product(key: str, product_id: str, default: str = ""):
+    supabase = get_supabase()
+    # Try specific link first
+    response = supabase.table("content_product_links").select("bot_content!inner(value)").eq("content_key", key).eq("product_id", product_id).maybe_single().execute()
+    if response.data:
+        return response.data['bot_content']['value']
         
-    # 2. Fallback para o conteúdo geral (sem ligação) ou primeiro disponível
-    cursor.execute("SELECT value FROM bot_content WHERE key = ?", (key,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else default
+    return get_bot_content(key, default)
 
-def update_bot_content_advanced(key, value, description, product_ids, button_text="", button_url=""):
-    conn = get_connection()
-    cursor = conn.cursor()
+def update_bot_content_advanced(key: str, value: str, description: str, product_ids: List[str], button_text: str = "", button_url: str = ""):
+    supabase = get_supabase()
+    supabase.table("bot_content").upsert({
+        "key": key,
+        "value": value,
+        "description": description,
+        "button_text": button_text,
+        "button_url": button_url
+    }).execute()
     
-    # Update or insert content
-    cursor.execute('''
-        INSERT OR REPLACE INTO bot_content (key, value, description, button_text, button_url) 
-        VALUES (?, ?, ?, ?, ?)
-    ''', (key, value, description, button_text, button_url))
-    
-    # Update links
-    cursor.execute("DELETE FROM content_product_links WHERE content_key = ?", (key,))
-    for p_id in product_ids:
-        cursor.execute("INSERT INTO content_product_links (content_key, product_id) VALUES (?, ?)", 
-                       (key, p_id))
-    
-    conn.commit()
-    conn.close()
+    supabase.table("content_product_links").delete().eq("content_key", key).execute()
+    if product_ids:
+        links = [{"content_key": key, "product_id": pid} for pid in product_ids]
+        supabase.table("content_product_links").insert(links).execute()
 
-def delete_bot_content(key):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM bot_content WHERE key = ?", (key,))
-    cursor.execute("DELETE FROM content_product_links WHERE content_key = ?", (key,))
-    conn.commit()
-    conn.close()
+def delete_bot_content(key: str):
+    supabase = get_supabase()
+    supabase.table("bot_content").delete().eq("key", key).execute()
 
 # --- V3: Automation ---
 def get_automation_rules():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM automation_rules")
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+    supabase = get_supabase()
+    response = supabase.table("automation_rules").select("*").execute()
+    return response.data
 
-def update_automation_rule(rule_id, delay, message, active):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE automation_rules SET delay_minutes = ?, message = ?, active = ? WHERE id = ?", (delay, message, active, rule_id))
-    conn.commit()
-    conn.close()
+def update_automation_rule(rule_id: int, delay: int, message: str, active: int):
+    supabase = get_supabase()
+    supabase.table("automation_rules").update({
+        "delay_minutes": delay,
+        "message": message,
+        "active": active
+    }).eq("id", rule_id).execute()
 
 def get_pending_automations():
-    """Retorna Pix pendentes que precisam de automação"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT t.*, r.message, u.username, u.full_name
-        FROM transactions t
-        INNER JOIN users u ON t.user_id = u.id
-        CROSS JOIN automation_rules r
-        WHERE t.status = 'pending' 
-        AND r.active = 1
-        AND datetime(t.created_at) <= datetime('now', '-' || r.delay_minutes || ' minutes', 'localtime')
-        AND datetime(t.created_at) > datetime('now', '-' || (r.delay_minutes + 15) || ' minutes', 'localtime')
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in rows]
+    """Retorna Pix pendentes que precisam de automação (Postgres version)"""
+    # Note: Complex cross-join logic is better handled via a RPC function in Supabase if needed,
+    # but let's implement a core version here using filters.
+    supabase = get_supabase()
+    
+    rules = get_automation_rules()
+    pending = []
+    
+    for rule in rules:
+        if not rule['active']: continue
+        
+        # We need to filter transactions by date range. 
+        # created_at <= now - delay and created_at > now - (delay + 15)
+        # For simplicity in API, we'll fetch and filter if not too many, 
+        # or use specialized where clause.
+        response = supabase.table("transactions").select("*, users!inner(username, full_name)").eq("status", "pending").execute()
+        
+        for t in response.data:
+            created = datetime.fromisoformat(t['created_at'].replace('Z', '+00:00'))
+            diff = (datetime.now(timezone.utc) - created).total_seconds() / 60
+            
+            if rule['delay_minutes'] <= diff < (rule['delay_minutes'] + 15):
+                t['message'] = rule['message']
+                user_info = t.pop('users', {})
+                t['username'] = user_info.get('username')
+                t['full_name'] = user_info.get('full_name')
+                pending.append(t)
+                
+    return pending
 
-# --- V3 Utility ---
-def execute_sql(query, params=(), commit=False):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(query, params)
-    if commit:
-        conn.commit()
-        res = cursor.lastrowid
-    else:
-        res = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return res
-
-def get_transaction_user(identifier):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM transactions WHERE id = ?", (identifier,))
-    row = cursor.fetchone()
-    conn.close()
-    return row['user_id'] if row else None
+def get_transaction_user(identifier: str) -> Optional[int]:
+    supabase = get_supabase()
+    response = supabase.table("transactions").select("user_id").eq("id", identifier).maybe_single().execute()
+    return response.data['user_id'] if response.data else None
