@@ -4,6 +4,11 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
