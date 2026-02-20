@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+database.db
+.gemini/
+brain/
+venv/
+node_modules/
+*.log

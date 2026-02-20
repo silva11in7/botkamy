@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Recuperação | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; --warning: #f5a623; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
+        .card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 1.2rem; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+        td { padding: 1.2rem; border-bottom: 1px solid var(--border); }
+        .btn-recover { background: rgba(245, 166, 35, 0.1); color: var(--warning); border: 1px solid var(--warning); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-recover:hover { background: var(--warning); color: black; }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="margin-bottom:3rem">
+            <h1 style="margin:0">Recuperação de Vendas</h1>
+            <p style="color:var(--text-dim)">Localize Pix gerados que ainda não foram pagos e tente converter.</p>
+        </header>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Produto</th>
+                        <th>Valor</th>
+                        <th>Gerado em</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td>
+                            <div style="font-weight:600">{{ tx.full_name or 'Cliente' }}</div>
+                            <div style="color:var(--text-dim); font-size:0.8rem">@{{ tx.username or 'Sem Username' }}</div>
+                        </td>
+                        <td>{{ tx.product_id }}</td>
+                        <td style="color:var(--primary); font-weight:700">R$ {{ "%.2f"|format(tx.amount) }}</td>
+                        <td style="color:var(--text-dim)">{{ tx.created_at[:16] }}</td>
+                        <td>
+                            <form action="/recuperar" method="post" style="display:inline">
+                                <input type="hidden" name="user_id" value="{{ tx.user_id }}">
+                                <input type="hidden" name="tx_id" value="{{ tx.id }}">
+                                <input type="hidden" name="message" value="{{ recovery_msg }}">
+                                <button type="submit" class="btn-recover">
+                                    <i data-lucide="mail" style="width:14px; vertical-align:middle"></i> Recuperar
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" style="text-align:center; padding: 4rem; color:var(--text-dim)">Nenhum Pix abandonado encontrado. 🎉</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

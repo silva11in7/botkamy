@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor de Conteúdo Elite | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; }
+        .card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; transition: 0.3s; }
+        .card:hover { border-color: rgba(255, 45, 85, 0.3); }
+        label { display: block; color: var(--text-dim); font-size: 0.8rem; margin-bottom: 0.5rem; }
+        textarea, input { width: 100%; background: #000; border: 1px solid var(--border); color: white; padding: 0.8rem; border-radius: 10px; margin-bottom: 1rem; font-family: inherit; }
+        .btn-save { background: var(--primary); color: white; border: none; padding: 0.7rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-delete { background: rgba(255, 255, 255, 0.05); color: #ff4d4d; border: 1px solid rgba(255, 77, 77, 0.2); padding: 0.7rem; border-radius: 8px; cursor: pointer; }
+        .product-link-box { background: #000; border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; max-height: 150px; overflow-y: auto; }
+        .product-option { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem; }
+        .product-option input { width: auto; margin: 0; }
+        .badge { background: rgba(255, 45, 85, 0.1); color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .add-card { border: 2px dashed var(--border); background: transparent; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; min-height: 300px; }
+        .add-card:hover { border-color: var(--primary); background: rgba(255, 45, 85, 0.02); }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="margin-bottom:3rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 style="margin:0">Editor de Conteúdo Elite</h1>
+                <p style="color:var(--text-dim)">Crie textos persuasivos e ligue-os a produtos específicos.</p>
+            </div>
+            <button onclick="document.getElementById('new-text-form').scrollIntoView({behavior:'smooth'})" class="btn-save" style="width:auto">
+                <i data-lucide="plus" style="vertical-align:middle; width:18px"></i> Novo Texto
+            </button>
+        </header>
+
+        <div class="grid">
+            {% for item in content_list %}
+            <div class="card">
+                <form action="/conteudo/update" method="post">
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:1rem">
+                        <div style="flex:1">
+                            <label>Chave do Texto</label>
+                            <input type="text" name="key" value="{{ item.key }}" readonly style="background:transparent; border-color:transparent; font-weight:700; color:var(--primary); padding:0">
+                        </div>
+                        <span class="badge">{{ 'SISTEMA' if item.key in ['welcome_text', 'plans_button', 'support_button', 'support_text'] else 'CUSTOM' }}</span>
+                    </div>
+
+                    <label>Descrição / Onde aparece</label>
+                    <input type="text" name="description" value="{{ item.description }}" placeholder="Ex: Mensagem enviada ao clicar no produto X">
+
+                    <label>Conteúdo da Mensagem</label>
+                    <textarea name="value" rows="5">{{ item.value }}</textarea>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <label>Botão (Texto)</label>
+                            <input type="text" name="btn_text" value="{{ item.button_text }}" placeholder="Ex: 🎁 GANHAR BÔNUS">
+                        </div>
+                        <div>
+                            <label>Botão (Link / URL)</label>
+                            <input type="text" name="btn_url" value="{{ item.button_url }}" placeholder="Ex: https://t.me/suporte">
+                        </div>
+                    </div>
+
+                    <label><i data-lucide="link" style="width:14px; vertical-align:middle"></i> Ativar apenas para os Produtos:</label>
+                    <div class="product-link-box">
+                        {% for prod in products %}
+                        <div class="product-option">
+                            <input type="checkbox" name="products" value="{{ prod.id }}" id="p-{{ item.key }}-{{ prod.id }}" {{ 'checked' if prod.id in item.products }}>
+                            <label for="p-{{ item.key }}-{{ prod.id }}" style="margin:0; color:white; cursor:pointer">{{ prod.name }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div style="display:flex; gap:10px">
+                        <button type="submit" class="btn-save" style="flex:1">Salvar Alterações</button>
+                        {% if item.key not in ['welcome_text', 'plans_button', 'support_button', 'support_text'] %}
+                        <button type="button" class="btn-delete" onclick="if(confirm('Excluir este texto?')) { this.form.action='/conteudo/delete'; this.form.submit(); }">
+                            <i data-lucide="trash-2" style="width:18px"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+            {% endfor %}
+
+            <!-- Form para Novo Texto -->
+            <div class="card add-card" id="new-text-form" onclick="this.classList.remove('add-card'); this.onclick=null; document.getElementById('new-inner').style.display='block'; document.getElementById('add-icon').style.display='none';">
+                <div id="add-icon" style="text-align:center">
+                    <i data-lucide="plus-circle" style="width:48px; height:48px; color:var(--border)"></i>
+                    <p style="color:var(--text-dim); margin-top:1rem">Clique para criar um novo texto</p>
+                </div>
+                <div id="new-inner" style="display:none; width:100%">
+                    <h3 style="margin-top:0">Novo Texto Persuasivo</h3>
+                    <form action="/conteudo/add" method="post">
+                        <label>Identificador Único (Chave)</label>
+                        <input type="text" name="key" placeholder="ex: info_vitalicio_promo" required>
+                        
+                        <label>Descrição</label>
+                        <input type="text" name="description" placeholder="Ex: Texto exibido no checkout do Vitalício">
+                        
+                        <label>Mensagem</label>
+                        <textarea name="value" rows="4" placeholder="Escreva o texto do bot aqui..." required></textarea>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div>
+                                <label>Botão (Texto)</label>
+                                <input type="text" name="btn_text" placeholder="Opcional">
+                            </div>
+                            <div>
+                                <label>Botão (Link / URL)</label>
+                                <input type="text" name="btn_url" placeholder="Opcional">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn-save">Criar Texto</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

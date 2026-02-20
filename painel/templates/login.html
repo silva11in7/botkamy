@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Login | Kamy Bot</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary: #ff2d55;
+        --secondary: #1a1a1a;
+        --bg: #0a0a0a;
+        --text: #ffffff;
+        --glass: rgba(255, 255, 255, 0.05);
+        --glass-border: rgba(255, 255, 255, 0.1);
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .login-card {
+        background: var(--glass);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        padding: 3rem;
+        border-radius: 24px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        animation: fadeIn 0.8s ease-out;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      h1 {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+        text-align: center;
+        background: linear-gradient(to right, #ff2d55, #ff7171);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      p {
+        color: #888;
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .input-group {
+        margin-bottom: 1.5rem;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        color: #aaa;
+      }
+
+      input {
+        width: 100%;
+        padding: 0.75rem 0;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid var(--glass-border);
+        color: white;
+        font-size: 1rem;
+        outline: none;
+        transition: border-color 0.3s;
+      }
+
+      input:focus {
+        border-color: var(--primary);
+      }
+
+      button {
+        width: 100%;
+        padding: 1rem;
+        border-radius: 12px;
+        border: none;
+        background: var(--primary);
+        color: white;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.3s;
+        margin-top: 1rem;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px -5px rgba(255, 45, 85, 0.4);
+        filter: brightness(1.1);
+      }
+
+      .error {
+        color: var(--primary);
+        text-align: center;
+        margin-top: 1rem;
+        font-size: 0.875rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-card">
+      <h1>Bot Kamy Admin</h1>
+      <p>Acesse o centro de comando</p>
+
+      <form action="/login" method="post">
+        <div class="input-group">
+          <label>Usuário</label>
+          <input type="text" name="username" required />
+        </div>
+        <div class="input-group">
+          <label>Senha</label>
+          <input type="password" name="password" required />
+        </div>
+        <button type="submit">Entrar no Painel</button>
+      </form>
+
+      {% if error %}
+      <div class="error">{{ error }}</div>
+      {% endif %}
+    </div>
+  </body>
+</html>

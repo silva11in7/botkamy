@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usuários | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #ff2d55;
+            --bg: #050505;
+            --card-bg: #0f0f0f;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-dim: #888888;
+        }
+
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; min-height: 100vh; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
+        .active { background: var(--card-bg); color: var(--text-main); }
+        .nav-item.active { background: rgba(255, 45, 85, 0.1); color: var(--primary); }
+
+        .main { flex: 1; padding: 2rem 3rem; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        
+        .table-card { background: var(--card-bg); border-radius: 24px; border: 1px solid var(--border); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+        td { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
+        
+        .user-avatar { width: 32px; height: 32px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: bold; font-size: 12px; }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header>
+            <div>
+                <h2 style="margin:0">Usuários</h2>
+                <p style="color:var(--text-dim); margin-top:4px">Lista de leads que iniciaram o bot no Telegram.</p>
+            </div>
+            <div style="display: flex; gap: 10px">
+                <input type="text" placeholder="Buscar usuário..." style="background:#111; border:1px solid var(--border); color:white; padding:8px 16px; border-radius:8px; outline:none">
+            </div>
+        </header>
+
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID / Avatar</th>
+                        <th>Nome Completo</th>
+                        <th>Username</th>
+                        <th>Data de Entrada</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td><span style="color:var(--text-dim)">#{{ user.id }}</span></td>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:12px">
+                                <div class="user-avatar">{{ user.full_name[:1]|upper if user.full_name else '?' }}</div>
+                                <span style="font-weight:600">{{ user.full_name or "Cliente Anonimo" }}</span>
+                            </div>
+                        </td>
+                        <td><span style="color:var(--primary)">@{{ user.username or "Sem Username" }}</span></td>
+                        <td style="color:var(--text-dim)">{{ user.created_at[:16] }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" style="text-align:center; padding: 4rem; color:var(--text-dim)">Nenhum usuário registrado ainda.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

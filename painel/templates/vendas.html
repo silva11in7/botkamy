@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendas | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #ff2d55;
+            --success: #00d97e;
+            --warning: #f5a623;
+            --danger: #ff4d4d;
+            --bg: #050505;
+            --card-bg: #0f0f0f;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-dim: #888888;
+        }
+
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; min-height: 100vh; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
+
+        .main { flex: 1; padding: 2rem 3rem; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        
+        .table-card { background: var(--card-bg); border-radius: 24px; border: 1px solid var(--border); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+        td { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
+        
+        .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+        .status-confirmed { background: rgba(0, 217, 126, 0.1); color: var(--success); }
+        .status-pending { background: rgba(245, 166, 35, 0.1); color: var(--warning); }
+        .status-failed { background: rgba(255, 77, 77, 0.1); color: var(--danger); }
+        
+        .method-icon { width: 16px; height: 16px; vertical-align: middle; margin-right: 6px; }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header>
+            <div>
+                <h2 style="margin:0">Vendas</h2>
+                <p style="color:var(--text-dim); margin-top:4px">Histórico completo de transações e webhooks.</p>
+            </div>
+            <button class="nav-item" style="border:1px solid var(--border); background:transparent">
+                <i data-lucide="download"></i> Exportar CSV
+            </button>
+        </header>
+
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Usuário / Docs</th>
+                        <th>Produto</th>
+                        <th>Valor</th>
+                        <th>Método</th>
+                        <th>Status</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td>
+                            <div style="font-weight:600">{{ tx.full_name or "Cliente" }}</div>
+                            <div style="color:var(--text-dim); font-size:11px">@{{ tx.username or "Sem User" }}</div>
+                        </td>
+                        <td><span style="color:var(--text-dim)">{{ tx.product_id }}</span></td>
+                        <td><b style="color: #fff">R$ {{ "%.2f"|format(tx.amount)|replace('.',',') }}</b></td>
+                        <td>
+                            <i data-lucide="credit-card" class="method-icon"></i> {{ tx.payment_method or 'PIX' }}
+                        </td>
+                        <td>
+                            <span class="status-badge {{ 'status-confirmed' if tx.status == 'confirmed' else 'status-pending' if tx.status == 'pending' else 'status-failed' }}">
+                                {{ "Aprovada" if tx.status == "confirmed" else "Pendente" if tx.status == "pending" else "Falhou" }}
+                            </span>
+                        </td>
+                        <td style="color:var(--text-dim)">{{ tx.created_at[:16] }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" style="text-align:center; padding: 4rem; color:var(--text-dim)">Nenhuma transação registrada ainda.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

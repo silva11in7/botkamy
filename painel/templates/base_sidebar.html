@@ -1,0 +1,48 @@
+<style>
+    .sidebar { width: 260px; background: #000; border-right: 1px solid var(--border); padding: 2rem 1.5rem; display: flex; flex-direction: column; height: 100vh; position: fixed; left: 0; top: 0; z-index: 100; }
+    .logo { font-size: 1.5rem; font-weight: 800; background: linear-gradient(to right, var(--primary), #ff7171); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; }
+    .nav-item { padding: 0.75rem 1rem; border-radius: 12px; color: var(--text-dim); text-decoration: none; display: flex; align-items: center; gap: 12px; transition: 0.2s; margin-bottom: 0.4rem; font-size: 0.9rem; }
+    .nav-item:hover, .nav-item.active { background: var(--card-bg); color: var(--text-main); }
+    .nav-item.active { background: rgba(255, 45, 85, 0.1); color: var(--primary); }
+</style>
+<aside class="sidebar">
+    <div class="logo"><i data-lucide="zap"></i> Kamy Control</div>
+    <nav>
+        <a href="/dashboard" class="nav-item {{ 'active' if active_page == 'dashboard' }}">
+            <i data-lucide="layout-dashboard"></i> Dashboard
+        </a>
+        <a href="/vendas" class="nav-item {{ 'active' if active_page == 'vendas' }}">
+            <i data-lucide="shopping-cart"></i> Vendas
+        </a>
+        <a href="/recuperacao" class="nav-item {{ 'active' if active_page == 'recuperacao' }}">
+            <i data-lucide="refresh-cw"></i> Recuperação
+        </a>
+        <a href="/produtos" class="nav-item {{ 'active' if active_page == 'produtos' }}">
+            <i data-lucide="package"></i> Produtos
+        </a>
+        <a href="/conteudo" class="nav-item {{ 'active' if active_page == 'conteudo' }}">
+            <i data-lucide="edit-3"></i> Conteúdo Bot
+        </a>
+        <a href="/automacao" class="nav-item {{ 'active' if active_page == 'automacao' }}">
+            <i data-lucide="cpu"></i> Automação
+        </a>
+        <a href="/usuarios" class="nav-item {{ 'active' if active_page == 'usuarios' }}">
+            <i data-lucide="users"></i> Usuários
+        </a>
+        <a href="/comunicacao" class="nav-item {{ 'active' if active_page == 'comunicacao' }}">
+            <i data-lucide="send"></i> Comunicação
+        </a>
+        <a href="/configuracoes" class="nav-item {{ 'active' if active_page == 'settings' }}">
+            <i data-lucide="settings"></i> Configurações
+        </a>
+        <div style="flex:1"></div>
+        <a href="/logout" class="nav-item" style="color:#ff4d4d">
+            <i data-lucide="log-out"></i> Sair
+        </a>
+    </nav>
+</aside>
+<script>
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+</script>

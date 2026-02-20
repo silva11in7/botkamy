@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Automação | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
+        .card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 2rem; max-width: 800px; }
+        .rule-row { background: #000; border: 1px solid var(--border); border-radius: 15px; padding: 1.5rem; margin-bottom: 1.5rem; position: relative; }
+        label { display: block; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 0.5rem; }
+        input, textarea, select { width: 100%; background: #0a0a0a; border: 1px solid var(--border); color: white; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
+        .active-badge { position: absolute; top: 1.5rem; right: 1.5rem; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; }
+        .btn-rule { background: var(--primary); color: white; border: none; padding: 0.8rem 2rem; border-radius: 10px; cursor: pointer; font-weight: 700; }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="margin-bottom:3rem">
+            <h1 style="margin:0">Robôs de Recuperação Autonôma</h1>
+            <p style="color:var(--text-dim)">Configure réguas de cobrança automáticas para converter Pix abandonados.</p>
+        </header>
+
+        <div class="card">
+            <h3 style="margin-top:0"><i data-lucide="clock" style="vertical-align:middle; width:20px"></i> Réguas de Disparo</h3>
+            <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:2rem">O sistema monitora transações pendentes e dispara mensagens nos intervalos abaixo.</p>
+
+            {% for rule in rules %}
+            <form action="/automacao/update" method="post" class="rule-row">
+                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem">
+                    <div>
+                        <label>Tempo de Espera (minutos)</label>
+                        <input type="number" name="delay" value="{{ rule.delay_minutes }}">
+                    </div>
+                    <div>
+                        <label>Status do Robô</label>
+                        <select name="active">
+                            <option value="1" {{ 'selected' if rule.active == 1 }}>ATIVADO</option>
+                            <option value="0" {{ 'selected' if rule.active == 0 }}>DESATIVADO</option>
+                        </select>
+                    </div>
+                </div>
+                <label>Mensagem Persuasiva</label>
+                <textarea name="message" rows="3">{{ rule.message }}</textarea>
+                <button type="submit" class="btn-rule">Salvar Alterações</button>
+            </form>
+            {% endfor %}
+
+            <div style="background: rgba(255, 45, 85, 0.05); padding: 1rem; border-radius: 10px; font-size: 0.8rem; border: 1px dashed var(--primary)">
+                💡 <strong>DICA ELITE:</strong> Ative a régua de 15 minutos com uma oferta de "Ganhe um bônus se pagar agora" para maximizar sua conversão.
+            </div>
+        </div>
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
