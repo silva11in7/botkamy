@@ -80,10 +80,16 @@ async def logout(request: Request):
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     if not get_current_user(request): return RedirectResponse(url="/")
-    metrics = database.get_metrics()
-    recent = database.get_all_transactions(10)
-    funnel = database.get_funnel_stats()
-    return templates.TemplateResponse("dashboard.html", {"request": request, "metrics": metrics, "recent": recent, "funnel": funnel, "active_page": "dashboard"})
+    try:
+        metrics = database.get_metrics()
+        recent = database.get_all_transactions(10)
+        funnel = database.get_funnel_stats()
+        return templates.TemplateResponse("dashboard.html", {"request": request, "metrics": metrics, "recent": recent, "funnel": funnel, "active_page": "dashboard"})
+    except Exception as e:
+        import traceback
+        logger.error(f"FATAL ERROR in Dashboard Route: {e}")
+        logger.error(traceback.format_exc())
+        return HTMLResponse(content=f"<h1>Erro Interno 500</h1><pre>{e}</pre>", status_code=500)
 
 # Vendas Page
 @app.get("/vendas", response_class=HTMLResponse)

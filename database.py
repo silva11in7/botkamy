@@ -157,12 +157,21 @@ def update_product(p_id: str, name: str, price: float, description: str, active:
 # --- Settings ---
 def get_setting(key: str, default: str = "") -> str:
     supabase = get_supabase()
-    response = supabase.table("settings").select("value").eq("key", key).maybe_single().execute()
-    return response.data['value'] if response.data else default
+    if not supabase: return default
+    try:
+        response = supabase.table("settings").select("value").eq("key", key).maybe_single().execute()
+        return response.data['value'] if response.data else default
+    except Exception as e:
+        logger.error(f"Error getting setting {key}: {e}")
+        return default
 
 def set_setting(key: str, value: Any):
     supabase = get_supabase()
-    supabase.table("settings").upsert({"key": key, "value": str(value)}).execute()
+    if not supabase: return
+    try:
+        supabase.table("settings").upsert({"key": key, "value": str(value)}).execute()
+    except Exception as e:
+        logger.error(f"Error setting {key}: {e}")
 
 # --- Stats for Charts ---
 def get_revenue_stats(days: int = 7):
@@ -212,12 +221,21 @@ def get_funnel_stats():
 # --- V3: Bot Content ---
 def get_bot_content(key: str, default: str = "") -> str:
     supabase = get_supabase()
-    response = supabase.table("bot_content").select("value").eq("key", key).maybe_single().execute()
-    return response.data['value'] if response.data else default
+    if not supabase: return default
+    try:
+        response = supabase.table("bot_content").select("value").eq("key", key).maybe_single().execute()
+        return response.data['value'] if response.data else default
+    except Exception as e:
+        logger.error(f"Error getting bot content {key}: {e}")
+        return default
 
 def update_bot_content(key: str, value: str):
     supabase = get_supabase()
-    supabase.table("bot_content").upsert({"key": key, "value": value}).execute()
+    if not supabase: return
+    try:
+        supabase.table("bot_content").upsert({"key": key, "value": value}).execute()
+    except Exception as e:
+        logger.error(f"Error updating bot content {key}: {e}")
 
 def get_all_content():
     supabase = get_supabase()
