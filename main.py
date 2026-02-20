@@ -348,6 +348,9 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
     identifier = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(10))
     
     # Create Pix payment via Oasyfy
+    client_email = f"user_{user_id}@telegram.com"
+    print(f"[DEBUG] Tentando gerar Pix para {product_id} - R${product['price']}")
+    
     pix_data = await oasyfy.create_pix_payment(
         identifier=identifier,
         amount=product['price'],
@@ -358,6 +361,7 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
     )
 
     if pix_data:
+        print(f"[DEBUG] Pix gerado com sucesso!")
         # Log transaction to database
         database.log_transaction(
             identifier=identifier,
@@ -367,6 +371,8 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
             status='pending',
             client_email=client_email
         )
+    else:
+        print(f"[DEBUG] FALHA na geração do Pix via Oasyfy.")
 
     if not pix_data:
         await query.message.reply_text("❌ Desculpe, ocorreu um erro ao gerar seu Pix. Por favor, tente novamente mais tarde ou contate o suporte.")

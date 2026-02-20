@@ -61,8 +61,8 @@ async def create_pix_payment(
             if response.status_code in [200, 201]:
                 return response.json()
             else:
-                logger.error(f"Oasyfy API Error: {response.status_code} - {response.text}")
+                logger.error(f"Oasyfy API Error: Status {response.status_code} - Content: {response.text}")
                 return None
         except Exception as e:
-            logger.error(f"Request failed: {e}")
+            logger.error(f"Oasyfy Connection Error: {e}")
             return None
