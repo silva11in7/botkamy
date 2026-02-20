@@ -11,10 +11,15 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-def get_supabase() -> Client:
+def get_supabase() -> Optional[Client]:
     if not SUPABASE_URL or not SUPABASE_KEY:
-        raise ValueError("SUPABASE_URL or SUPABASE_KEY environment variables not set.")
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+        logger.error("❌ CRITICAL: SUPABASE_URL or SUPABASE_KEY not set in environment!")
+        return None
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        logger.error(f"❌ Error creating Supabase client: {e}")
+        return None
 
 def init_db():
     """
@@ -26,6 +31,7 @@ def init_db():
 # --- User & Transaction Helpers ---
 def log_user(user_id: int, username: str, full_name: str):
     supabase = get_supabase()
+    if not supabase: return
     data = {
         "id": user_id,
         "username": username,
@@ -36,6 +42,7 @@ def log_user(user_id: int, username: str, full_name: str):
 
 def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None):
     supabase = get_supabase()
+    if not supabase: return
     data = {
         "id": identifier,
         "user_id": user_id,
@@ -69,49 +76,74 @@ def confirm_transaction(identifier: str):
 # --- Data Fetching for Metrics/Admin ---
 def get_metrics():
     supabase = get_supabase()
+    if not supabase: return {"total_users": 0, "total_sales": 0, "total_revenue": 0.0, "pending_pix": 0}
     
-    total_users = supabase.table("users").select("id", count="exact").execute().count
-    total_sales = supabase.table("transactions").select("id", count="exact").eq("status", "confirmed").execute().count
-    
-    response = supabase.table("transactions").select("amount").eq("status", "confirmed").execute()
-    total_revenue = sum(row['amount'] for row in response.data) if response.data else 0.0
-    
-    pending_pix = supabase.table("transactions").select("id", count="exact").eq("status", "pending").execute().count
-    
-    return {
-        "total_users": total_users,
-        "total_sales": total_sales,
-        "total_revenue": total_revenue,
-        "pending_pix": pending_pix
-    }
+    try:
+        total_users = supabase.table("users").select("id", count="exact").execute().count or 0
+        total_sales = supabase.table("transactions").select("id", count="exact").eq("status", "confirmed").execute().count or 0
+        
+        response = supabase.table("transactions").select("amount").eq("status", "confirmed").execute()
+        total_revenue = sum(row['amount'] for row in response.data) if response.data else 0.0
+        
+        pending_pix = supabase.table("transactions").select("id", count="exact").eq("status", "pending").execute().count or 0
+        
+        return {
+            "total_users": total_users,
+            "total_sales": total_sales,
+            "total_revenue": total_revenue,
+            "pending_pix": pending_pix
+        }
+    except Exception as e:
+        logger.error(f"Error fetching metrics: {e}")
+        return {"total_users": 0, "total_sales": 0, "total_revenue": 0.0, "pending_pix": 0}
 
 def get_all_transactions(limit: int = 100):
     supabase = get_supabase()
-    response = supabase.table("transactions").select("*, users!left(username, full_name)").order("created_at", descending=True).limit(limit).execute()
-    
-    results = []
-    for row in response.data:
-        user_info = row.pop('users', {}) or {}
-        row['username'] = user_info.get('username')
-        row['full_name'] = user_info.get('full_name')
-        results.append(row)
-    return results
+    if not supabase: return []
+    try:
+        response = supabase.table("transactions").select("*, users(username, full_name)").order("created_at", descending=True).limit(limit).execute()
+        
+        results = []
+        for row in response.data:
+            user_info = row.pop('users', {}) or {}
+            row['username'] = user_info.get('username')
+            row['full_name'] = user_info.get('full_name')
+            results.append(row)
+        return results
+    except Exception as e:
+        logger.error(f"Error fetching transactions: {e}")
+        return []
 
 def get_all_users(limit: int = 1000):
     supabase = get_supabase()
-    response = supabase.table("users").select("*").order("created_at", descending=True).limit(limit).execute()
-    return response.data
+    if not supabase: return []
+    try:
+        response = supabase.table("users").select("*").order("created_at", descending=True).limit(limit).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}")
+        return []
 
 # --- Product Management ---
 def get_active_products():
     supabase = get_supabase()
-    response = supabase.table("products").select("*").eq("active", 1).execute()
-    return {row['id']: {"name": row['name'], "price": row['price'], "desc": row['description']} for row in response.data}
+    if not supabase: return {}
+    try:
+        response = supabase.table("products").select("*").eq("active", 1).execute()
+        return {row['id']: {"name": row['name'], "price": row['price'], "desc": row['description']} for row in response.data}
+    except Exception as e:
+        logger.error(f"Error fetching active products: {e}")
+        return {}
 
 def get_all_products_raw():
     supabase = get_supabase()
-    response = supabase.table("products").select("*").execute()
-    return response.data
+    if not supabase: return []
+    try:
+        response = supabase.table("products").select("*").execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching all products: {e}")
+        return []
 
 def update_product(p_id: str, name: str, price: float, description: str, active: int):
     supabase = get_supabase()
@@ -135,35 +167,47 @@ def set_setting(key: str, value: Any):
 # --- Stats for Charts ---
 def get_revenue_stats(days: int = 7):
     supabase = get_supabase()
-    # Simplified: Get all confirmed and group in Python for consistency
-    response = supabase.table("transactions").select("created_at, amount").eq("status", "confirmed").order("created_at", descending=True).execute()
-    
-    stats = {}
-    for row in response.data:
-        day = row['created_at'].split("T")[0]
-        stats[day] = stats.get(day, 0) + row['amount']
-        if len(stats) >= days: break
+    if not supabase: return []
+    try:
+        response = supabase.table("transactions").select("created_at, amount").eq("status", "confirmed").order("created_at", descending=True).execute()
         
-    return [{"day": d, "total": v} for d, v in sorted(stats.items())]
+        stats = {}
+        for row in response.data:
+            day = row['created_at'].split("T")[0]
+            stats[day] = stats.get(day, 0) + row['amount']
+            if len(stats) >= days: break
+            
+        return [{"day": d, "total": v} for d, v in sorted(stats.items())]
+    except Exception as e:
+        logger.error(f"Error fetching revenue stats: {e}")
+        return []
 
 # --- V3: Funnel & Analytics ---
 def track_event(user_id: int, event_type: str):
     supabase = get_supabase()
-    supabase.table("funnel_events").insert({
-        "user_id": user_id,
-        "event_type": event_type
-    }).execute()
+    if not supabase: return
+    try:
+        supabase.table("funnel_events").insert({
+            "user_id": user_id,
+            "event_type": event_type
+        }).execute()
+    except Exception as e:
+        logger.error(f"Error tracking event: {e}")
 
 def get_funnel_stats():
     supabase = get_supabase()
     stages = ['start', 'view_plans', 'checkout', 'payment_success']
-    stats = {}
-    for stage in stages:
-        response = supabase.table("funnel_events").select("user_id", count="exact").eq("event_type", stage).execute()
-        # count for distinct would be better but exact count of user_ids is close for now
-        # Supabase doesn't easily support select count(distinct) via API
-        stats[stage] = response.count
-    return stats
+    stats = {stage: 0 for stage in stages}
+    if not supabase: return stats
+    
+    try:
+        for stage in stages:
+            response = supabase.table("funnel_events").select("user_id", count="exact").eq("event_type", stage).execute()
+            stats[stage] = response.count or 0
+        return stats
+    except Exception as e:
+        logger.error(f"Error fetching funnel stats: {e}")
+        return stats
 
 # --- V3: Bot Content ---
 def get_bot_content(key: str, default: str = "") -> str:
