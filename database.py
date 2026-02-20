@@ -11,6 +11,10 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+# Failsafe: Se o usuário colou a URL duplicada (ex: https://...https://...)
+if SUPABASE_URL and SUPABASE_URL.count("https://") > 1:
+    SUPABASE_URL = "https://" + SUPABASE_URL.split("https://")[-1]
+
 def get_supabase() -> Optional[Client]:
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.error("❌ CRITICAL: SUPABASE_URL or SUPABASE_KEY not set in environment!")
