@@ -18,11 +18,41 @@ import main as bot_main
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Render URL for keep-alive (User should set RENDER_EXTERNAL_URL in dashboard)
+RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
+
 app = FastAPI()
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+async def keep_alive():
+    """Tarefa de background que pinga o próprio servidor para evitar sleep no Render Free Tier."""
+    if not RENDER_URL:
+        logger.info("RENDER_EXTERNAL_URL não configurada. Keep-alive desativado.")
+        return
+        
+    logger.info(f"Keep-alive iniciado para: {RENDER_URL}")
+    import httpx
+    while True:
+        try:
+            await asyncio.sleep(840) # 14 minutos (Render dorme em 15)
+            async with httpx.AsyncClient() as client:
+                await client.get(f"{RENDER_URL}/health")
+                logger.info("Keep-alive ping enviado com sucesso.")
+        except Exception as e:
+            logger.error(f"Erro no keep-alive: {e}")
 
 @app.on_event("startup")
 async def startup_event():
     """Inicia o bot de forma assíncrona junto com o FastAPI."""
+    # Inicia o keep-alive se a URL estiver presente
+    if RENDER_URL:
+        asyncio.create_task(keep_alive())
+        
+    # Espera um pouco para garantir que tudo carregou
+    await asyncio.sleep(2)
     try:
         application = bot_main.start_bot()
         await application.initialize()
@@ -31,7 +61,9 @@ async def startup_event():
         app.state.bot_app = application
         logger.info("Bot Telegram iniciado com sucesso no ciclo de vida do FastAPI.")
     except Exception as e:
-        logger.error(f"Erro ao iniciar o bot: {e}")
+        logger.error(f"⚠️ ERRO CRÍTICO AO INICIAR BOT: {e}")
+        # Não trava o FastAPI se o bot falhar (ex: conflito 409)
+        pass
 
 @app.on_event("shutdown")
 async def shutdown_event():
