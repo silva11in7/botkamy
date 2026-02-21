@@ -110,7 +110,7 @@ def get_all_transactions(limit: int = 100):
     supabase = get_supabase()
     if not supabase: return []
     try:
-        response = supabase.table("transactions").select("*, users(username, full_name)").order("created_at", descending=True).limit(limit).execute()
+        response = supabase.table("transactions").select("*, users(username, full_name)").order("created_at", desc=True).limit(limit).execute()
         
         results = []
         for row in response.data:
@@ -127,7 +127,7 @@ def get_all_users(limit: int = 1000):
     supabase = get_supabase()
     if not supabase: return []
     try:
-        response = supabase.table("users").select("*").order("created_at", descending=True).limit(limit).execute()
+        response = supabase.table("users").select("*").order("created_at", desc=True).limit(limit).execute()
         return response.data
     except Exception as e:
         logger.error(f"Error fetching users: {e}")
@@ -187,7 +187,7 @@ def get_revenue_stats(days: int = 7):
     supabase = get_supabase()
     if not supabase: return []
     try:
-        response = supabase.table("transactions").select("created_at, amount").eq("status", "confirmed").order("created_at", descending=True).execute()
+        response = supabase.table("transactions").select("created_at, amount").eq("status", "confirmed").order("created_at", desc=True).execute()
         
         stats = {}
         for row in response.data:
