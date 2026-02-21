@@ -44,12 +44,36 @@ async def keep_alive():
         except Exception as e:
             logger.error(f"Erro no keep-alive: {e}")
 
+async def bot_watchdog():
+    """Tarefa que monitora se o bot parou de rodar e tenta reiniciar."""
+    logger.info("Watchdog do Bot iniciado.")
+    while True:
+        await asyncio.sleep(300) # Verifica a cada 5 minutos
+        if not hasattr(app.state, "bot_app") or not app.state.bot_app.updater.running:
+            logger.warning("⚠️ WATCHDOG: Bot detectado como OFFLINE! Tentando reiniciar...")
+            try:
+                if hasattr(app.state, "bot_app"):
+                    try:
+                        await app.state.bot_app.updater.stop()
+                        await app.state.bot_app.stop()
+                    except: pass
+                
+                application = bot_main.start_bot()
+                await application.initialize()
+                await application.start()
+                await application.updater.start_polling()
+                app.state.bot_app = application
+                logger.info("✅ WATCHDOG: Bot reiniciado com sucesso.")
+            except Exception as e:
+                logger.error(f"❌ WATCHDOG: Falha ao reiniciar o bot: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     """Inicia o bot de forma assíncrona junto com o FastAPI."""
-    # Inicia o keep-alive se a URL estiver presente
+    # Inicia o keep-alive e o watchdog
     if RENDER_URL:
         asyncio.create_task(keep_alive())
+    asyncio.create_task(bot_watchdog())
         
     # Espera um pouco para garantir que tudo carregou
     await asyncio.sleep(2)

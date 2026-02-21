@@ -573,9 +573,25 @@ def start_bot():
     return app
 
 if __name__ == '__main__':
-    application = start_bot()
-    print("Bot Kamy is running...")
-    try:
-        application.run_polling()
-    except Conflict:
-        print("ERRO: Outra instância do bot já está rodando! Feche-a antes de iniciar esta.")
+    from telegram.error import NetworkError, Conflict
+    import time
+
+    backoff = 1
+    while True:
+        try:
+            application = start_bot()
+            print("Bot Kamy is starting polling...")
+            application.run_polling(drop_pending_updates=True)
+        except Conflict:
+            print("⚠️ Conflito Detectado: Outra instância está rodando. Aguardando 10s...")
+            time.sleep(10)
+        except NetworkError:
+            print(f"⚠️ Erro de Rede: Falha na conexão. Tentando novamente em {backoff}s...")
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60) # Exponential backoff max 60s
+        except Exception as e:
+            print(f"💥 Erro Inesperado: {e}. Reiniciando em 5s...")
+            time.sleep(5)
+        else:
+            # Se sair normalmente (o que não deve acontecer no polling), reseta o backoff
+            backoff = 1
