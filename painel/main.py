@@ -1,18 +1,19 @@
+import os
+import sys
+
+# Adicionar o diretório pai ao path para importar o bot e o database
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, Body
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import database
-import os
+import main as bot_main
 import logging
 import asyncio
 import threading
 from typing import Optional
-import sys
-
-# Adicionar o diretório pai ao path para importar o bot
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import main as bot_main
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
