@@ -1,13 +1,18 @@
 import os
 import sys
 
-# Adicionar o diretório pai ao path para importar o bot e o database
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Adicionar o diretório pai ao topo do path para priorizar o robô e o database
+# Isso evita conflitos com o arquivo painel/main.py que tem o mesmo nome
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, Body
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+
+# Agora importa do diretório pai corretamente
 import database
 import main as bot_main
 import logging
