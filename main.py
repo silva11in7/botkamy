@@ -29,6 +29,12 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 # Track pending reminders: {user_id: asyncio.Task}
 pending_reminders = {}
 
+# Media cache to avoid re-uploading files: {file_path: file_id}
+media_cache = {
+    "banner": None,
+    "reminder_videos": {}
+}
+
 # --- Content Data (Now Dynamic) ---
 def get_products():
     return database.get_active_products()
@@ -101,11 +107,26 @@ async def run_reminder(user_id: int, chat_id: int, context: ContextTypes.DEFAULT
         chosen_video = random.choice(video_files)
         
         if os.path.exists(chosen_video):
-            with open(chosen_video, 'rb') as video:
-                await context.bot.send_video(
+            # Check cache for file_id
+            cached_id = media_cache["reminder_videos"].get(chosen_video)
+            
+            try:
+                msg = await context.bot.send_video(
                     chat_id=chat_id,
-                    video=video,
+                    video=cached_id or open(chosen_video, 'rb'),
                     caption="🔥 **NÃO VAI EMBORA!**\n\nPreparei um presente especial: **15% de DESCONTO** exclusivo pra você hoje! 🎁🎬",
+                    reply_markup=InlineKeyboardMarkup(INACTIVITY_KEYBOARD),
+                    parse_mode='Markdown'
+                )
+                # Store file_id if not cached
+                if not cached_id and msg.video:
+                    media_cache["reminder_videos"][chosen_video] = msg.video.file_id
+            except Exception as e:
+                print(f"[ERROR] Failed to send reminder video: {e}")
+                # Fallback text if sending fails
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="🔥 **ESPERA!** Preparei um desconto de **15% OFF** pra você não perder nada hoje! 🎁",
                     reply_markup=InlineKeyboardMarkup(INACTIVITY_KEYBOARD),
                     parse_mode='Markdown'
                 )
@@ -155,19 +176,20 @@ async def run_reminder(user_id: int, chat_id: int, context: ContextTypes.DEFAULT
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Entry point: Welcome Message with Banner."""
-    if await check_maintenance(update): return
     user = update.effective_user
-    database.log_user(user.id, user.username, user.full_name)
-    database.track_event(user.id, 'start') # NEW V3: Track funnel
+    # Log user and track event in background threads
+    asyncio.create_task(asyncio.to_thread(database.log_user, user.id, user.username, user.full_name))
+    asyncio.create_task(asyncio.to_thread(database.track_event, user.id, 'start'))
 
-    welcome_text = database.get_bot_content("welcome_text", "Olá gatão! Escolha seu plano abaixo e comece agora:")
+    # Fetch content and products safely in threads
+    welcome_text = await asyncio.to_thread(database.get_bot_content, "welcome_text", "Olá gatão! Escolha seu plano abaixo e comece agora:")
     # Build Keyboard
     keyboard = []
     
     # Adicionar produtos linkados primeiro
-    linked_prod_ids = database.get_products_for_content("welcome_text")
+    linked_prod_ids = await asyncio.to_thread(database.get_products_for_content, "welcome_text")
     if linked_prod_ids:
-        all_prods = database.get_active_products()
+        all_prods = await asyncio.to_thread(database.get_active_products)
         for prod_id in linked_prod_ids:
             product = all_prods.get(prod_id)
             if product:
@@ -182,11 +204,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo_path = os.path.join("imgs", "3banner.mp4")
     
     if os.path.exists(photo_path):
-        with open(photo_path, 'rb') as banner_file:
+        # Check cache for file_id
+        cached_id = media_cache.get("banner")
+        
+        try:
             if photo_path.lower().endswith(('.mp4', '.mov', '.avi')):
-                await update.message.reply_video(video=banner_file, caption=welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+                msg = await update.message.reply_video(
+                    video=cached_id or open(photo_path, 'rb'),
+                    caption=welcome_text,
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                if not cached_id and msg.video:
+                    media_cache["banner"] = msg.video.file_id
             else:
-                await update.message.reply_photo(photo=banner_file, caption=welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+                msg = await update.message.reply_photo(
+                    photo=cached_id or open(photo_path, 'rb'),
+                    caption=welcome_text,
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                if not cached_id and msg.photo:
+                    media_cache["banner"] = msg.photo[-1].file_id
+        except Exception as e:
+            print(f"[ERROR] Failed to send banner: {e}")
+            await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
     else:
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
     
@@ -503,11 +545,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product_id = data.split('_')[1]
         await product_detail(update, context, product_id)
     elif data == "ver_planos":
-        database.track_event(user_id, 'view_plans') # NEW V3: Track funnel
+        asyncio.create_task(asyncio.to_thread(database.track_event, user_id, 'view_plans'))
         await show_products(update, context)
     elif data.startswith('buy_'):
         product_id = data.replace('buy_', '', 1)
-        database.track_event(user_id, 'checkout') # NEW V3: Track funnel
+        asyncio.create_task(asyncio.to_thread(database.track_event, user_id, 'checkout'))
         await handle_purchase(update, context, product_id)
     elif data.startswith('confirm_pay_'):
         await confirm_payment(update, context)
