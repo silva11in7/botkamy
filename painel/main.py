@@ -111,6 +111,13 @@ database.init_db()
 # Setup templates and static relative to this file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+
+# Ensure required directories exist
+for folder in ["static", "media"]:
+    path = os.path.join(BASE_DIR, folder)
+    if not os.path.exists(path):
+        os.makedirs(path)
+
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 app.mount("/media", StaticFiles(directory=os.path.join(BASE_DIR, "media")), name="media")
 
