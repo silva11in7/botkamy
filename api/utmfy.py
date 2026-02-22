@@ -19,12 +19,15 @@ def format_date(date_val: Any) -> str:
     
     if isinstance(date_val, str):
         try:
-            # Handle ISO format from Supabase (e.g., 2024-07-26T14:35:13.123+00:00)
-            clean_date = date_val.replace('T', ' ').split('.')[0].split('+')[0]
+            # Handle ISO format from Supabase (e.g., 2024-07-26T14:35:13.123+00:00 or 2024-07-26T14:35:13Z)
+            # Remove Z at the end and other ISO artifacts
+            clean_date = date_val.strip().replace('Z', '').replace('T', ' ').split('.')[0].split('+')[0]
             # Try to parse to ensure it's valid
             dt = datetime.strptime(clean_date, '%Y-%m-%d %H:%M:%S')
             return dt.strftime('%Y-%m-%d %H:%M:%S')
         except Exception:
+            # Fallback to current time if parsing fails, but logger warn it
+            logger.warning(f"Failed to parse date: {date_val}. Using current time.")
             return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
     
     if isinstance(date_val, datetime):
@@ -104,7 +107,7 @@ async def send_order(
                 "planId": None,
                 "planName": None,
                 "quantity": 1,
-                "priceInCents": int(float(product_data.get("price", 0)) * 100)
+                "priceInCents": int(round(float(product_data.get("price", 0)) * 100))
             }
         ],
         "trackingParameters": {
@@ -117,9 +120,9 @@ async def send_order(
             "utm_term": tracking_data.get("utm_term") if tracking_data else None
         },
         "commission": {
-            "totalPriceInCents": int(float(product_data.get("price", 0)) * 100),
+            "totalPriceInCents": int(round(float(product_data.get("price", 0)) * 100)),
             "gatewayFeeInCents": 0,
-            "userCommissionInCents": int(float(product_data.get("price", 0)) * 100)
+            "userCommissionInCents": int(round(float(product_data.get("price", 0)) * 100))
         },
         "isTest": False
     }
