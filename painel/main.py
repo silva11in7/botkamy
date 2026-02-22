@@ -330,26 +330,43 @@ async def receive_webhook(request: Request, data: dict = Body(...)):
     # NEW: UTMfy "Purchase" event tracking
     if local_status == 'confirmed':
         try:
-            # We need the user info and tracking data from metadata
-            user_id = database.get_transaction_user(identifier)
-            db_user = database.get_user(user_id) if user_id else None
-            
-            if db_user:
-                # Merge user info with the actual metadata received in webhook
-                user_info = {
-                    "id": user_id,
-                    "username": db_user.get("username"),
-                    "full_name": db_user.get("full_name"),
-                    **metadata # This contains ttclid, utms, etc.
-                }
-                tx_info = {
-                    "id": identifier,
-                    "amount": transaction_data.get("amount") / 100, # Babylon cents to real
-                    "babylon_id": babylon_id,
-                    "method": transaction_data.get("paymentMethod")
-                }
-                # Run in background to avoid delaying the webhook response
-                asyncio.create_task(utmfy.send_event("Purchase", user_info, tx_info))
+            # Get full transaction and user data
+            tx = database.get_transaction(identifier)
+            if tx:
+                user_id = tx.get("user_id")
+                db_user = database.get_user(user_id) if user_id else None
+                
+                if db_user:
+                    # Tracking data is in tx['metadata']
+                    tracking_data = tx.get("metadata", {})
+                    
+                    user_info = {
+                        "id": user_id,
+                        "full_name": db_user.get("full_name"),
+                        "created_at": db_user.get("created_at")
+                    }
+                    
+                    # Try to get product info (we have product_id in tx)
+                    # For simplicity, we can use the title from Babylon or tx['product_id']
+                    # We'll assume the product data is needed for the price
+                    product_info = {
+                        "id": tx.get("product_id"),
+                        "name": tx.get("product_id", "Acesso VIP"), # Use name from tx if we had it, but id is unique
+                        "price": tx.get("amount")
+                    }
+                    
+                    # Approved date is now
+                    approved_now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    # Run in background to avoid delaying the webhook response
+                    asyncio.create_task(utmfy.send_order(
+                        order_id=identifier,
+                        status="paid",
+                        user_data=user_info,
+                        product_data=product_info,
+                        tracking_data=tracking_data,
+                        approved_date=approved_now
+                    ))
         except Exception as e:
             logger.error(f"Error sending Purchase event to UTMfy: {e}")
     

@@ -361,3 +361,8 @@ def get_transaction_user(identifier: str) -> Optional[int]:
     supabase = get_supabase()
     response = supabase.table("transactions").select("user_id").eq("id", identifier).maybe_single().execute()
     return response.data['user_id'] if response.data else None
+
+def get_transaction(identifier: str) -> Optional[Dict[str, Any]]:
+    supabase = get_supabase()
+    response = supabase.table("transactions").select("*").eq("id", identifier).maybe_single().execute()
+    return response.data if response.data else None

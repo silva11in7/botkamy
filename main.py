@@ -212,14 +212,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Log user with tracking data
     asyncio.create_task(asyncio.to_thread(database.log_user, user.id, user.username, user.full_name, tracking_data))
     
-    # Track "Lead" event in UTMfy
-    user_info = {
-        "id": user.id,
-        "username": user.username,
-        "full_name": user.full_name,
-        **tracking_data
-    }
-    asyncio.create_task(utmfy.send_event("Lead", user_info))
+    # Track event in DB
     asyncio.create_task(asyncio.to_thread(database.track_event, user.id, 'start'))
 
     # Fetch content and products safely in threads
@@ -441,19 +434,24 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
     client_email = f"user_{user_id}@telegram.com"
     print(f"[DEBUG] Tentando gerar Pix para {product_id} - R${product['price']}")
     
-    # Track "InitiateCheckout" event in UTMfy
-    checkout_info = {
+    # Track "InitiateCheckout" in UTMfy as "waiting_payment" order
+    user_info = {
         "id": user_id,
-        "username": user.username,
         "full_name": user.full_name,
-        **tracking_data
+        "created_at": db_user.get("created_at") if db_user else None
     }
-    tx_meta = {
-        "product_id": product_id,
-        "product_name": product['name'],
-        "amount": product['price']
+    product_info = {
+        "id": product_id,
+        "name": product['name'],
+        "price": product['price']
     }
-    asyncio.create_task(utmfy.send_event("InitiateCheckout", checkout_info, tx_meta))
+    asyncio.create_task(utmfy.send_order(
+        order_id=identifier,
+        status="waiting_payment",
+        user_data=user_info,
+        product_data=product_info,
+        tracking_data=tracking_data
+    ))
 
     pix_data = await babylon.create_pix_payment(
         identifier=identifier,
