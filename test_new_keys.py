@@ -1,28 +1,29 @@
 import asyncio
 import os
 from dotenv import load_dotenv
-from api import oasyfy
+from api import babylon
 
 async def test():
     load_dotenv()
-    print(f"Testing keys:")
-    print(f"Public: {os.getenv('OASYFY_PUBLIC_KEY')}")
-    # print(f"Secret: {os.getenv('OASYFY_SECRET_KEY')}")
+    print(f"Testing Babylon API:")
+    print(f"API Key: {os.getenv('BABYLON_API_KEY')}")
     
-    res = await oasyfy.create_pix_payment(
-        identifier="test_debug_123",
+    res = await babylon.create_pix_payment(
+        identifier="test_babylon_001",
         amount=1.00,
-        client_name="Test User",
-        client_email="test@example.com",
-        client_phone="11999999999",
-        client_document="12345678909"
+        client_name="João Teste",
+        client_email="teste@pagamento.com",
+        client_phone="11912345678",
+        client_document="12345678909",
+        product_title="Produto Teste Babylon"
     )
     
     if res:
         print("✅ SUCCESS!")
-        print(res)
+        print(f"Pix Copy/Paste: {res['pix']['code']}")
+        print(f"QR Code URL: {res['pix']['image']}")
     else:
-        print("❌ FAILED!")
+        print("❌ FAILED! Check the logs.")
 
 if __name__ == "__main__":
     asyncio.run(test())

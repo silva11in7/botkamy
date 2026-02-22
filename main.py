@@ -7,10 +7,11 @@ import random
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
-from api import oasyfy
+from api import babylon, utmfy
 import secrets
 import string
 import database
+import json
 
 # Initialize database
 database.init_db()
@@ -174,11 +175,50 @@ async def run_reminder(user_id: int, chat_id: int, context: ContextTypes.DEFAULT
             del pending_reminders[user_id]
         print(f"[DEBUG] Reminder task CLEANED UP for user {user_id}")
 
+def parse_start_payload(payload: str) -> Dict[str, str]:
+    """Parses standard and custom tracking parameters from the start payload."""
+    tracking = {}
+    if not payload: return tracking
+    
+    # Example format: ttclid_12345_utms_tiktok_utmm_cpc
+    if "_" in payload:
+        parts = payload.split("_")
+        for i in range(0, len(parts) - 1, 2):
+            key = parts[i]
+            val = parts[i+1]
+            if key == "ttclid": tracking["ttclid"] = val
+            elif key == "utms": tracking["utm_source"] = val
+            elif key == "utmm": tracking["utm_medium"] = val
+            elif key == "utmc": tracking["utm_campaign"] = val
+            elif key == "utmt": tracking["utm_term"] = val
+            elif key == "utmn": tracking["utm_content"] = val
+    else:
+        # Fallback: Treat as ttclid if no separators
+        tracking["ttclid"] = payload
+        
+    return tracking
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Entry point: Welcome Message with Banner."""
     user = update.effective_user
-    # Log user and track event in background threads
-    asyncio.create_task(asyncio.to_thread(database.log_user, user.id, user.username, user.full_name))
+    
+    # Parse tracking data from /start payload
+    tracking_data = {}
+    if context.args:
+        tracking_data = parse_start_payload(context.args[0])
+        print(f"[DEBUG] Tracking detected for user {user.id}: {tracking_data}")
+
+    # Log user with tracking data
+    asyncio.create_task(asyncio.to_thread(database.log_user, user.id, user.username, user.full_name, tracking_data))
+    
+    # Track "Lead" event in UTMfy
+    user_info = {
+        "id": user.id,
+        "username": user.username,
+        "full_name": user.full_name,
+        **tracking_data
+    }
+    asyncio.create_task(utmfy.send_event("Lead", user_info))
     asyncio.create_task(asyncio.to_thread(database.track_event, user.id, 'start'))
 
     # Fetch content and products safely in threads
@@ -384,37 +424,63 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
         pending_reminders[user_id].cancel()
         del pending_reminders[user_id]
         
+    # Get internal user data (for tracking)
+    db_user = await asyncio.to_thread(database.get_user, user_id)
+    tracking_data = {}
+    if db_user:
+        # Extract tracking fields
+        for key in ["ttclid", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]:
+            if db_user.get(key):
+                tracking_data[key] = db_user[key]
+
     await query.message.reply_text("Certo, me dá só um minuto enquanto gero seu Pix de pagamento...")
     
     # Generate unique identifier
     identifier = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(10))
     
-    # Create Pix payment via Oasyfy
+    # Create Pix payment via Babylon
     client_email = f"user_{user_id}@telegram.com"
     print(f"[DEBUG] Tentando gerar Pix para {product_id} - R${product['price']}")
     
-    pix_data = await oasyfy.create_pix_payment(
+    # Track "InitiateCheckout" event in UTMfy
+    checkout_info = {
+        "id": user_id,
+        "username": user.username,
+        "full_name": user.full_name,
+        **tracking_data
+    }
+    tx_meta = {
+        "product_id": product_id,
+        "product_name": product['name'],
+        "amount": product['price']
+    }
+    asyncio.create_task(utmfy.send_event("InitiateCheckout", checkout_info, tx_meta))
+
+    pix_data = await babylon.create_pix_payment(
         identifier=identifier,
         amount=product['price'],
         client_name=user.full_name or "Cliente Telegram",
         client_email=client_email,
         client_phone="(11) 99999-9999", # Placeholder
-        client_document="12345678909" # Placeholder
+        client_document="12345678909", # Placeholder
+        product_title=product['name'],
+        metadata=tracking_data # Pass tracking metadata to Babylon for webhook usage
     )
 
     if pix_data:
         print(f"[DEBUG] Pix gerado com sucesso!")
-        # Log transaction to database
+        # Log transaction to database with tracking metadata
         database.log_transaction(
             identifier=identifier,
             user_id=user_id,
             product_id=product_id,
             amount=product['price'],
             status='pending',
-            client_email=client_email
+            client_email=client_email,
+            metadata=tracking_data
         )
     else:
-        print(f"[DEBUG] FALHA na geração do Pix via Oasyfy.")
+        print(f"[DEBUG] FALHA na geração do Pix via Babylon.")
 
     if not pix_data:
         await query.message.reply_text("❌ Desculpe, ocorreu um erro ao gerar seu Pix. Por favor, tente novamente mais tarde ou contate o suporte.")

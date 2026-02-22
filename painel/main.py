@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 # Agora importa do diretório pai corretamente
 import database
 import main as bot_main
+from api import utmfy
 import logging
 import asyncio
 import threading
@@ -290,30 +291,69 @@ async def save_settings(request: Request, webhook_token: str = Form(...), mainte
 # --- Webhook Endpoint ---
 @app.post("/webhook")
 async def receive_webhook(request: Request, data: dict = Body(...)):
-    logger.info(f"Received webhook: {data.get('event')}")
-    event = data.get("event")
-    token = data.get("token")
-    stored_token = database.get_setting("webhook_token")
-    if stored_token and token != stored_token: raise HTTPException(status_code=403, detail="Invalid token")
-
-    transaction_data = data.get("transaction")
-    if not transaction_data: return {"status": "success"}
-
-    identifier = transaction_data.get("identifier")
-    oasyfy_id = transaction_data.get("id")
-    status = transaction_data.get("status")
+    logger.info(f"Received webhook: {data.get('type') or 'update'}")
     
-    if status == 'COMPLETED': 
+    # Babylon payload has the transaction details inside the 'data' key
+    transaction_data = data.get("data", {})
+    if not transaction_data:
+        logger.warning("Webhook received without 'data' content.")
+        return {"status": "success"}
+
+    # Extract identifier from metadata (where we stored it) or use the transaction ID
+    metadata = transaction_data.get("metadata") or {}
+    identifier = metadata.get("identifier") if isinstance(metadata, dict) else None
+    
+    # Fallback to the transaction ID if identifier not in metadata
+    if not identifier:
+        identifier = transaction_data.get("id")
+
+    babylon_id = transaction_data.get("id")
+    status = transaction_data.get("status", "").lower()
+    
+    local_status = 'pending'
+    if status == 'paid': 
         local_status = 'confirmed'
-        # NEW V3: Track conversion success
+        # Track conversion success
         user_id = database.get_transaction_user(identifier)
         if user_id:
              database.track_event(user_id, 'payment_success')
-    elif status in ['FAILED', 'CHARGED_BACK']: local_status = 'failed'
-    elif status == 'REFUNDED': local_status = 'refunded'
+    elif status in ['refused', 'canceled', 'failed', 'expired']: 
+        local_status = 'failed'
+    elif status == 'refunded': 
+        local_status = 'refunded'
+    elif status == 'chargedback':
+        local_status = 'refunded' # Or handle specifically if needed
 
-    database.update_transaction_status(identifier=identifier, status=local_status, oasyfy_id=oasyfy_id)
-    return {"status": "success"}
+    logger.info(f"Updating transaction {identifier} to status {local_status} (Babylon ID: {babylon_id})")
+    database.update_transaction_status(identifier=identifier, status=local_status, oasyfy_id=babylon_id)
+    
+    # NEW: UTMfy "Purchase" event tracking
+    if local_status == 'confirmed':
+        try:
+            # We need the user info and tracking data from metadata
+            user_id = database.get_transaction_user(identifier)
+            db_user = database.get_user(user_id) if user_id else None
+            
+            if db_user:
+                # Merge user info with the actual metadata received in webhook
+                user_info = {
+                    "id": user_id,
+                    "username": db_user.get("username"),
+                    "full_name": db_user.get("full_name"),
+                    **metadata # This contains ttclid, utms, etc.
+                }
+                tx_info = {
+                    "id": identifier,
+                    "amount": transaction_data.get("amount") / 100, # Babylon cents to real
+                    "babylon_id": babylon_id,
+                    "method": transaction_data.get("paymentMethod")
+                }
+                # Run in background to avoid delaying the webhook response
+                asyncio.create_task(utmfy.send_event("Purchase", user_info, tx_info))
+        except Exception as e:
+            logger.error(f"Error sending Purchase event to UTMfy: {e}")
+    
+    return {"status": "success", "processed": True}
 
 if __name__ == "__main__":
     import uvicorn

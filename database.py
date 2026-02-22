@@ -38,7 +38,7 @@ def init_db():
     pass
 
 # --- User & Transaction Helpers ---
-def log_user(user_id: int, username: str, full_name: str):
+def log_user(user_id: int, username: str, full_name: str, tracking_data: Optional[Dict[str, Any]] = None):
     supabase = get_supabase()
     if not supabase: return
     data = {
@@ -47,9 +47,24 @@ def log_user(user_id: int, username: str, full_name: str):
         "full_name": full_name,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    supabase.table("users").upsert(data).execute()
+    
+    if tracking_data:
+        # Standard UTMs + ttclid
+        for key in ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ttclid"]:
+            if key in tracking_data:
+                data[key] = tracking_data[key]
+                
+def get_user(user_id: int) -> Optional[Dict[str, Any]]:
+    supabase = get_supabase()
+    if not supabase: return None
+    try:
+        response = supabase.table("users").select("*").eq("id", user_id).maybe_single().execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching user {user_id}: {e}")
+        return None
 
-def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None):
+def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None, metadata: Optional[Dict[str, Any]] = None):
     supabase = get_supabase()
     if not supabase: return
     data = {
@@ -60,7 +75,8 @@ def log_transaction(identifier: str, user_id: int, product_id: str, amount: floa
         "status": status,
         "payment_method": payment_method,
         "client_email": client_email,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "metadata": metadata or {}
     }
     supabase.table("transactions").insert(data).execute()
 
