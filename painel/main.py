@@ -52,50 +52,14 @@ async def keep_alive():
         except Exception as e:
             logger.error(f"Erro no keep-alive: {e}")
 
-async def bot_watchdog():
-    """Tarefa que monitora se o bot parou de rodar e tenta reiniciar."""
-    logger.info("Watchdog do Bot iniciado.")
-    while True:
-        await asyncio.sleep(300) # Verifica a cada 5 minutos
-        if not hasattr(app.state, "bot_app") or not app.state.bot_app.updater.running:
-            logger.warning("⚠️ WATCHDOG: Bot detectado como OFFLINE! Tentando reiniciar...")
-            try:
-                if hasattr(app.state, "bot_app"):
-                    try:
-                        await app.state.bot_app.updater.stop()
-                        await app.state.bot_app.stop()
-                    except: pass
-                
-                application = bot_main.start_bot()
-                await application.initialize()
-                await application.start()
-                await application.updater.start_polling()
-                app.state.bot_app = application
-                logger.info("✅ WATCHDOG: Bot reiniciado com sucesso.")
-            except Exception as e:
-                logger.error(f"❌ WATCHDOG: Falha ao reiniciar o bot: {e}")
-
 @app.on_event("startup")
 async def startup_event():
-    """Inicia o bot de forma assíncrona junto com o FastAPI."""
-    # Inicia o keep-alive e o watchdog
+    """Startup events for the painel."""
+    # Inicia o keep-alive se houver URL externa
     if RENDER_URL:
         asyncio.create_task(keep_alive())
-    asyncio.create_task(bot_watchdog())
-        
-    # Espera um pouco para garantir que tudo carregou
-    await asyncio.sleep(2)
-    try:
-        application = bot_main.start_bot()
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling()
-        app.state.bot_app = application
-        logger.info("Bot Telegram iniciado com sucesso no ciclo de vida do FastAPI.")
-    except Exception as e:
-        logger.error(f"⚠️ ERRO CRÍTICO AO INICIAR BOT: {e}")
-        # Não trava o FastAPI se o bot falhar (ex: conflito 409)
-        pass
+    
+    logger.info("Painel Administrativo iniciado com sucesso.")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -410,13 +374,13 @@ async def advanced_health_check():
             results[name]["status"] = "offline"
 
     # Check Bot (Internal Status)
-    if hasattr(app.state, "bot_app") and hasattr(app.state.bot_app, "updater") and app.state.bot_app.updater.running:
+    # We now check if the bot logged a heart-beat in the last 2 minutes
+    last_seen = database.get_setting("bot_last_heartbeat", "0")
+    if time.time() - float(last_seen) < 120:
         results["bot"]["status"] = "online"
-        # Get bot info to be sure
-        try:
-            me = await app.state.bot_app.bot.get_me()
-            results["bot"]["username"] = me.username
-        except: pass
+        results["bot"]["username"] = database.get_setting("bot_username", "KamyBot")
+    else:
+        results["bot"]["status"] = "offline"
 
     # Check Babylon
     await check_api("babylon", "https://api.babylonpay.io/v1/health") 

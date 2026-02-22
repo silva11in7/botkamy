@@ -646,7 +646,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start(update, context)
 
 
-from telegram.error import Conflict
+async def bot_heartbeat(context: ContextTypes.DEFAULT_TYPE):
+    """Periodically updates the bot status in the DB."""
+    while True:
+        try:
+            database.set_setting("bot_last_heartbeat", str(datetime.now(timezone.utc).timestamp()))
+            me = await context.bot.get_me()
+            database.set_setting("bot_username", f"@{me.username}")
+        except Exception as e:
+            print(f"[ERROR] Heartbeat failed: {e}")
+        await asyncio.sleep(60)
+
+async def post_init(application):
+    """Tasks to run after bot is initialized."""
+    # Set bot commands
+    commands = [
+        BotCommand("start", "Iniciar o robô"),
+        BotCommand("ajuda", "Ver ajuda")
+    ]
+    await application.bot.set_my_commands(commands)
+    
+    # Start heartbeat in the background
+    asyncio.create_task(bot_heartbeat(ContextTypes.DEFAULT_TYPE(application)))
+    print("✅ Bot Heartbeat & Commands configured.")
 
 def start_bot():
     """Build and return the bot application."""
