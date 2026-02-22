@@ -12,6 +12,7 @@ import secrets
 import string
 import database
 import json
+from typing import Dict, Any, List, Optional
 
 # Initialize database
 database.init_db()
