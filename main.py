@@ -401,12 +401,10 @@ async def product_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, pro
             
         await update.callback_query.message.reply_text(
             text=msg['value'],
-            reply_markup=markup,
-            parse_mode='Markdown'
         )
 
 async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: str):
-    """Handles the purchase flow using Oasyfy API."""
+    """Handles the purchase flow using Babylon API."""
     if await check_maintenance(update): return
     query = update.callback_query
     user = update.effective_user
