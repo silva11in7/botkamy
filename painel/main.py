@@ -279,6 +279,11 @@ async def settings_page(request: Request):
     }
     return templates.TemplateResponse("configuracoes.html", {"request": request, "settings": settings, "active_page": "settings"})
 
+@app.get("/go", response_class=HTMLResponse)
+async def bridge_page(request: Request):
+    """Bridge page to catch TikTok Pixel then redirect to Telegram."""
+    return templates.TemplateResponse("bridge.html", {"request": request})
+
 @app.post("/configuracoes")
 async def save_settings(request: Request, webhook_token: str = Form(...), maintenance_mode: str = Form(...), support_user: str = Form(...), recovery_message: str = Form(...)):
     if not get_current_user(request): return RedirectResponse(url="/")
