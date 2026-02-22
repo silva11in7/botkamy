@@ -123,20 +123,43 @@
                 </form>
             </div>
 
-            <!-- TikTok Ads Pixel (Future) -->
-            <div class="card" style="opacity: 0.6;">
+            <!-- TikTok Ads API Card -->
+            <div class="card">
                 <div class="card-header">
                     <div class="icon-box"><i data-lucide="music-2"></i></div>
                     <div>
                         <h2 style="margin:0; font-size: 1.2rem;">TikTok Ads API</h2>
                         <span style="font-size: 0.8rem; color: var(--text-dim);">Pixel & Eventos Offline</span>
                     </div>
-                    <span class="status-badge" style="background: rgba(255,255,255,0.05); color: var(--text-dim);">Em breve</span>
+                    {% if tiktok_token and tiktok_pixel %}
+                    <span class="status-badge status-active">Conectado</span>
+                    {% else %}
+                    <span class="status-badge status-pending">Pendente</span>
+                    {% endif %}
                 </div>
-                <p class="desc">Envie eventos de conversão diretamente para o TikTok Ads via API para otimizar suas campanhas e evitar perda de dados por bloqueadores.</p>
-                <button disabled class="btn-save" style="background: #222; color: #555; cursor: not-allowed;">
-                    Disponível no Plano Platinum
-                </button>
+                
+                <p class="desc">Envie eventos de conversão diretamente para o TikTok Ads via API. Melhore a otimização de suas campanhas enviando eventos de pagamento confirmado e checkouts.</p>
+
+                <form action="/api/integrations/update" method="post">
+                    <input type="hidden" name="type" value="tiktok">
+                    <div class="form-group">
+                        <label>ACCESS TOKEN (CONVERSION API)</label>
+                        <div class="input-wrapper">
+                            <input type="password" name="api_token" value="{{ tiktok_token or '' }}" placeholder="Insira seu Access Token do TikTok...">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>PIXEL ID / PIXEL CODE</label>
+                        <div class="input-wrapper">
+                            <input type="text" name="pixel_id" value="{{ tiktok_pixel or '' }}" placeholder="Insira seu Pixel ID...">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-save">
+                        <i data-lucide="save"></i> Salvar Configuração
+                    </button>
+                </form>
             </div>
         </div>
     </main>

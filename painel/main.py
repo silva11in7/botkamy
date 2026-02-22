@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 # Agora importa do diretório pai corretamente
 import database
 import main as bot_main
-from api import utmfy
+from api import utmfy, tiktok
 import logging
 import asyncio
 import threading
@@ -354,19 +354,34 @@ async def monitoramento_page(request: Request):
 async def integrations_page(request: Request):
     if not get_current_user(request): return RedirectResponse(url="/")
     utmfy_token = database.get_setting("utmfy_api_token")
+    tiktok_token = database.get_setting("tiktok_api_token")
+    tiktok_pixel = database.get_setting("tiktok_pixel_id")
+    
     return templates.TemplateResponse("integracoes.html", {
         "request": request, 
         "active_page": "integracoes",
-        "utmfy_token": utmfy_token
+        "utmfy_token": utmfy_token,
+        "tiktok_token": tiktok_token,
+        "tiktok_pixel": tiktok_pixel
     })
 
 @app.post("/api/integrations/update")
-async def update_integration(request: Request, type: str = Form(...), api_token: str = Form(...)):
+async def update_integration(
+    request: Request, 
+    type: str = Form(...), 
+    api_token: str = Form(...),
+    pixel_id: Optional[str] = Form(None)
+):
     if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
     
     if type == "utmfy":
         database.set_setting("utmfy_api_token", api_token)
         logger.info(f"UTMFY Token updated via painel.")
+    elif type == "tiktok":
+        database.set_setting("tiktok_api_token", api_token)
+        if pixel_id:
+            database.set_setting("tiktok_pixel_id", pixel_id)
+        logger.info(f"TikTok Settings updated via painel.")
     
     return RedirectResponse(url="/integracoes", status_code=303)
 
@@ -505,6 +520,19 @@ async def receive_webhook(request: Request, data: dict = Body(...)):
                         transaction_data=tx, # CRITICAL: This ensures createdAt matches waiting_payment
                         approved_date=approved_now
                     ))
+                    
+                    # TikTok CompletePayment Event
+                    tiktok_user_info = {
+                        "full_name": db_user.get("full_name"),
+                        "tracking_data": tracking_data,
+                        "ip": user_info.get("ip")
+                    }
+                    tiktok_props = {
+                        "contents": [{"content_id": tx.get("product_id"), "content_name": product_info['name']}],
+                        "value": tx.get("amount"),
+                        "currency": "BRL"
+                    }
+                    asyncio.create_task(tiktok.send_tiktok_event("CompletePayment", user_id, tiktok_user_info, tiktok_props, event_id=identifier))
         except Exception as e:
             logger.error(f"Error sending Purchase event to UTMfy: {e}")
     

@@ -7,7 +7,7 @@ import random
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
-from api import babylon, utmfy
+from api import babylon, utmfy, tiktok
 from datetime import datetime, timezone
 import secrets
 import string
@@ -229,6 +229,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Track event in DB
     asyncio.create_task(asyncio.to_thread(database.track_event, user.id, 'start'))
+    
+    # TikTok Contact Event
+    user_info = {
+        "full_name": user.full_name,
+        "username": user.username,
+        "tracking_data": tracking_data
+    }
+    asyncio.create_task(tiktok.send_tiktok_event("Contact", user.id, user_info))
 
     # Fetch content and products safely in threads
     welcome_text = await asyncio.to_thread(database.get_bot_content, "welcome_text", "Olá gatão! Escolha seu plano abaixo e comece agora:")
@@ -474,6 +482,18 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
         tracking_data=tracking_data,
         transaction_data=tx_data
     ))
+
+    # TikTok InitiateCheckout Event
+    tiktok_user_info = {
+        "full_name": user.full_name,
+        "tracking_data": tracking_data
+    }
+    tiktok_props = {
+        "contents": [{"content_id": product_id, "content_name": product['name']}],
+        "value": product['price'],
+        "currency": "BRL"
+    }
+    asyncio.create_task(tiktok.send_tiktok_event("InitiateCheckout", user_id, tiktok_user_info, tiktok_props, event_id=identifier))
 
     pix_data = await babylon.create_pix_payment(
         identifier=identifier,
