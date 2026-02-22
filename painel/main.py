@@ -350,6 +350,26 @@ async def monitoramento_page(request: Request):
     if not get_current_user(request): return RedirectResponse(url="/")
     return templates.TemplateResponse("monitoramento.html", {"request": request, "active_page": "monitoramento"})
 
+@app.get("/integracoes")
+async def integrations_page(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    utmfy_token = database.get_setting("utmfy_api_token")
+    return templates.TemplateResponse("integracoes.html", {
+        "request": request, 
+        "active_page": "integracoes",
+        "utmfy_token": utmfy_token
+    })
+
+@app.post("/api/integrations/update")
+async def update_integration(request: Request, type: str = Form(...), api_token: str = Form(...)):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    if type == "utmfy":
+        database.set_setting("utmfy_api_token", api_token)
+        logger.info(f"UTMFY Token updated via painel.")
+    
+    return RedirectResponse(url="/integracoes", status_code=303)
+
 @app.get("/api/health_advanced")
 async def advanced_health_check():
     """Advanced health check for monitoring dashboard."""

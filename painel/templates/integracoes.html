@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Integrações | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #ff2d55;
+            --bg: #050505;
+            --card-bg: #0f0f0f;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-dim: #888888;
+            --success: #00ff88;
+        }
+
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
+        .main-content { margin-left: 260px; padding: 2rem 3rem; width: 100%; max-width: 1200px; }
+
+        header { margin-bottom: 2.5rem; }
+        h1 { font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, #fff, var(--primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+        p { color: var(--text-dim); margin-top: 0.5rem; }
+
+        .integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 2rem; }
+        
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: 0.3s;
+        }
+        .card:hover { border-color: rgba(255, 45, 85, 0.3); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--primary); opacity: 0.1; }
+
+        .card-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+        .icon-box { width: 50px; height: 50px; background: rgba(255, 45, 85, 0.1); border-radius: 14px; display: flex; align-items: center; justify-content: center; color: var(--primary); }
+        
+        .status-badge { font-size: 0.7rem; font-weight: 800; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; margin-left: auto; }
+        .status-active { background: rgba(0, 255, 136, 0.1); color: var(--success); }
+        .status-pending { background: rgba(255, 170, 0, 0.1); color: #ffaa00; }
+
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 0.6rem; }
+        .input-wrapper { position: relative; }
+        input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            transition: 0.2s;
+            box-sizing: border-box;
+        }
+        input:focus { outline: none; border-color: var(--primary); background: rgba(255, 255, 255, 0.05); }
+
+        .btn-save {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+        }
+        .btn-save:hover { transform: scale(1.02); filter: brightness(1.1); box-shadow: 0 5px 20px rgba(255, 45, 85, 0.3); }
+
+        .desc { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 1.5rem; }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main-content">
+        <header>
+            <h1>Central de Integrações</h1>
+            <p>Gerencie suas chaves de API e conexões externas de forma segura.</p>
+        </header>
+
+        <div class="integration-grid">
+            <!-- Utmify Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon-box"><i data-lucide="bar-chart-3"></i></div>
+                    <div>
+                        <h2 style="margin:0; font-size: 1.2rem;">Utmify Tracking</h2>
+                        <span style="font-size: 0.8rem; color: var(--text-dim);">Rastreamento de Pedidos e ROI</span>
+                    </div>
+                    {% if utmfy_token %}
+                    <span class="status-badge status-active">Conectado</span>
+                    {% else %}
+                    <span class="status-badge status-pending">Pendente</span>
+                    {% endif %}
+                </div>
+                
+                <p class="desc">Conecte sua conta Utmify para rastrear automaticamente todas as vendas, checkouts e leads gerados pelo robô. Não é necessário alterar o código.</p>
+
+                <form action="/api/integrations/update" method="post">
+                    <input type="hidden" name="type" value="utmfy">
+                    <div class="form-group">
+                        <label>UTMFY API TOKEN</label>
+                        <div class="input-wrapper">
+                            <input type="password" name="api_token" value="{{ utmfy_token or '' }}" placeholder="Insira seu token da Utmify...">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-save">
+                        <i data-lucide="save"></i> Salvar Configuração
+                    </button>
+                </form>
+            </div>
+
+            <!-- TikTok Ads Pixel (Future) -->
+            <div class="card" style="opacity: 0.6;">
+                <div class="card-header">
+                    <div class="icon-box"><i data-lucide="music-2"></i></div>
+                    <div>
+                        <h2 style="margin:0; font-size: 1.2rem;">TikTok Ads API</h2>
+                        <span style="font-size: 0.8rem; color: var(--text-dim);">Pixel & Eventos Offline</span>
+                    </div>
+                    <span class="status-badge" style="background: rgba(255,255,255,0.05); color: var(--text-dim);">Em breve</span>
+                </div>
+                <p class="desc">Envie eventos de conversão diretamente para o TikTok Ads via API para otimizar suas campanhas e evitar perda de dados por bloqueadores.</p>
+                <button disabled class="btn-save" style="background: #222; color: #555; cursor: not-allowed;">
+                    Disponível no Plano Platinum
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

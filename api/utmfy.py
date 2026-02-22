@@ -3,12 +3,13 @@ import httpx
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
+import database
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-UTMFY_API_TOKEN = os.getenv("UTMFY_API_TOKEN")
+# We will fetch this dynamically from DB in the send_order function
 UTMFY_API_URL = "https://api.utmify.com.br/api-credentials/orders"
 
 def format_date(date_val: Any) -> str:
@@ -44,8 +45,11 @@ async def send_order(
     """
     Sends order information to UTMfy Orders API.
     """
-    if not UTMFY_API_TOKEN:
-        logger.warning("UTMFY_API_TOKEN not configured. Skipping event.")
+    # Fetch token dynamically from database
+    token = database.get_setting("utmfy_api_token") or os.getenv("UTMFY_API_TOKEN")
+    
+    if not token:
+        logger.warning("UTMFY_API_TOKEN not configured in DB or ENV. Skipping event.")
         return
 
     # Map status
@@ -121,7 +125,7 @@ async def send_order(
     }
 
     headers = {
-        "x-api-token": UTMFY_API_TOKEN,
+        "x-api-token": token,
         "Content-Type": "application/json"
     }
 
