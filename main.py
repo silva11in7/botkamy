@@ -38,6 +38,19 @@ media_cache = {
     "reminder_videos": {}
 }
 
+def get_media_source(key, default_rel_path):
+    """Safely gets media path from DB or fallback to default."""
+    try:
+        custom_path = database.get_bot_content(key)
+        if custom_path and custom_path.startswith("/media/"):
+            # Paths mapped in painel are relative to painel/ folder
+            full_path = os.path.join("painel", custom_path.lstrip("/"))
+            if os.path.exists(full_path):
+                return full_path
+    except Exception as e:
+        print(f"[ERROR] get_media_source for {key}: {e}")
+    return default_rel_path
+
 # --- Content Data (Now Dynamic) ---
 def get_products():
     return database.get_active_products()
@@ -102,11 +115,12 @@ async def run_reminder(user_id: int, chat_id: int, context: ContextTypes.DEFAULT
         await asyncio.sleep(30)
         print(f"[DEBUG] Reminder timer EXPIRED (30s) for user {user_id}. Sending video...")
         # Stage 1: Random Video + 15% OFF
-        video_files = [
-            "imgs/videokamyrebo.mp4",
-            "imgs/1.mp4",
-            "imgs/2.mp4"
-        ]
+        # Try to get dynamic videos from DB, fallback to hardcoded list
+        custom_v1 = get_media_source("inactivity_video_1", "imgs/videokamyrebo.mp4")
+        custom_v2 = get_media_source("inactivity_video_2", "imgs/1.mp4")
+        custom_v3 = get_media_source("inactivity_video_3", "imgs/2.mp4")
+        
+        video_files = [custom_v1, custom_v2, custom_v3]
         chosen_video = random.choice(video_files)
         
         if os.path.exists(chosen_video):
@@ -236,7 +250,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
     
-    photo_path = os.path.join("imgs", "3banner.mp4")
+    # Dynamic Banner
+    photo_path = get_media_source("welcome_photo", os.path.join("imgs", "3banner.mp4"))
     
     if os.path.exists(photo_path):
         # Check cache for file_id

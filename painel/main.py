@@ -108,9 +108,11 @@ async def shutdown_event():
 # Initialize database
 database.init_db()
 
-# Setup templates relative to this file
+# Setup templates and static relative to this file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.mount("/media", StaticFiles(directory=os.path.join(BASE_DIR, "media")), name="media")
 
 # Simple session-less auth for demo
 ADMIN_USERNAME = "admin"
@@ -289,6 +291,75 @@ async def get_source_data():
     labels = [d['source'] for d in data]
     values = [d['total'] for d in data]
     return JSONResponse({"labels": labels, "values": values})
+
+# --- V3: Central de Mídia ---
+@app.get("/midia", response_class=HTMLResponse)
+async def media_manager(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    
+    media_dir = os.path.join(BASE_DIR, "media")
+    files = []
+    if os.path.exists(media_dir):
+        for f in os.listdir(media_dir):
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.mp4', '.mov')):
+                files.append({"name": f, "url": f"/media/{f}"})
+    
+    # Get current mapping from DB
+    mapping = {
+        "welcome_photo": database.get_bot_content("welcome_photo"),
+        "inactivity_video_1": database.get_bot_content("inactivity_video_1"),
+        "inactivity_video_2": database.get_bot_content("inactivity_video_2"),
+        "inactivity_video_3": database.get_bot_content("inactivity_video_3"),
+    }
+    
+    return templates.TemplateResponse("midia.html", {
+        "request": request, 
+        "files": files, 
+        "mapping": mapping,
+        "active_page": "midia"
+    })
+
+@app.post("/api/media/upload")
+async def upload_media(request: Request, file: bytes = Body(...), filename: str = Body(...)):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    save_path = os.path.join(BASE_DIR, "media", filename)
+    with open(save_path, "wb") as f:
+        f.write(file)
+    
+    return JSONResponse({"status": "ok", "url": f"/media/{filename}"})
+
+@app.post("/api/media/upload_multipart")
+async def upload_media_multipart(request: Request, file: UploadFile = File(...)):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    filename = file.filename
+    save_path = os.path.join(BASE_DIR, "media", filename)
+    
+    with open(save_path, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+    
+    return JSONResponse({"status": "ok", "url": f"/media/{filename}"})
+
+@app.post("/api/media/delete")
+async def delete_media(request: Request, filename: str = Form(...)):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    
+    file_path = os.path.join(BASE_DIR, "media", filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    return RedirectResponse(url="/midia", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/api/media/map")
+async def map_media(request: Request, key: str = Form(...), filename: str = Form(...)):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    
+    url = f"/media/{filename}"
+    database.update_bot_content(key, url)
+    
+    return RedirectResponse(url="/midia", status_code=status.HTTP_303_SEE_OTHER)
 
 # Configurações
 @app.get("/configuracoes", response_class=HTMLResponse)

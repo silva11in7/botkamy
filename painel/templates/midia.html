@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Central de Mídias | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #ff2d55;
+            --bg: #050505;
+            --card-bg: #0f0f0f;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-dim: #888888;
+            --success: #00ff88;
+        }
+
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; overflow-x: hidden; }
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; min-height: 100vh; }
+
+        .upload-zone {
+            background: rgba(255, 45, 85, 0.05);
+            border: 2px dashed var(--primary);
+            border-radius: 24px;
+            padding: 3rem;
+            text-align: center;
+            margin-bottom: 3rem;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .upload-zone:hover { background: rgba(255, 45, 85, 0.1); }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .media-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .media-card:hover { transform: translateY(-5px); border-color: var(--primary); }
+
+        .media-preview {
+            width: 100%;
+            height: 150px;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .media-preview img, .media-preview video { width: 100%; height: 100%; object-fit: cover; }
+
+        .media-info { padding: 1rem; }
+        .file-name { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .actions { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-action { flex: 1; background: #222; border: none; color: white; padding: 6px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-delete { background: rgba(255, 77, 77, 0.1); color: #ff4d4d; }
+
+        /* Mapping Section */
+        .mapping-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+
+        .mapping-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mapping-label { font-weight: 600; }
+        .mapping-value { color: var(--primary); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+
+        select { background: #1a1a1a; border: 1px solid var(--border); color: white; padding: 8px 12px; border-radius: 8px; outline: none; }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="margin-bottom: 2rem;">
+            <h1 style="margin:0; font-size: 2rem; font-weight: 800;">Central de Mídias HUD</h1>
+            <p style="color:var(--text-dim); margin-top: 5px;">Gerencie fotos e vídeos que o seu robô utiliza.</p>
+        </header>
+
+        <!-- Hidden File Input -->
+        <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*">
+        
+        <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+            <i data-lucide="upload-cloud" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 1rem;"></i>
+            <h2 style="margin:0">Arraste ou clique para enviar</h2>
+            <p style="color:var(--text-dim)">Suporta imagens (JPG, PNG) e vídeos (MP4)</p>
+        </div>
+
+        <h2 style="border-left: 4px solid var(--primary); padding-left: 15px;">Arquivos no Servidor</h2>
+        <div class="media-grid">
+            {% for file in files %}
+            <div class="media-card">
+                <div class="media-preview">
+                    {% if file.name.lower().endswith(('.mp4', '.mov')) %}
+                        <video src="{{ file.url }}" muted></video>
+                        <div style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); padding:4px; border-radius:4px;"><i data-lucide="video" style="width:12px"></i></div>
+                    {% else %}
+                        <img src="{{ file.url }}">
+                    {% endif %}
+                </div>
+                <div class="media-info">
+                    <div class="file-name" title="{{ file.name }}">{{ file.name }}</div>
+                    <div class="actions">
+                        <form action="/api/media/delete" method="post" style="flex:1">
+                            <input type="hidden" name="filename" value="{{ file.name }}">
+                            <button type="submit" class="btn-action btn-delete"><i data-lucide="trash-2" style="width:12px"></i> Apagar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="mapping-section">
+            <h2 style="margin-top:0"><i data-lucide="settings-2" style="vertical-align:middle"></i> Atribuição Dinâmica</h2>
+            <p style="color:var(--text-dim); font-size: 0.9rem; margin-bottom: 2rem;">Vincule cada mídia a uma função do robô.</p>
+            
+            <div class="mapping-container">
+                {% for key, current in mapping.items() %}
+                <div class="mapping-row">
+                    <div class="mapping-label">{{ key.replace('_', ' ').title() }}</div>
+                    <div style="display:flex; gap: 15px; align-items:center">
+                        <span class="mapping-value">{{ current.split('/')[-1] if current else 'Padrão' }}</span>
+                        <form action="/api/media/map" method="post">
+                            <input type="hidden" name="key" value="{{ key }}">
+                            <select name="filename" onchange="this.form.submit()">
+                                <option value="">Alterar para...</option>
+                                {% for file in files %}
+                                <option value="{{ file.name }}">{{ file.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        // Handle File Upload
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            // We use simple bytes upload or multipart. Let's use standard POST for better compatibility.
+            // But main.py expects bytes = Body(...). Let's adjust JS to send raw.
+            
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const response = await fetch('/api/media/upload', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/octet-stream',
+                            'X-Filename': file.name // We'll need to update main.py to read filename from header if we use raw Body
+                        },
+                        body: reader.result
+                    });
+                    
+                    // Actually, let's just use standard form upload for simplicity and update main.py
+                    location.reload();
+                } catch (err) {
+                    alert("Erro no upload");
+                }
+            };
+            // reader.readAsArrayBuffer(file);
+            
+            // Refactored Simple Upload using standard Form
+            const fd = new FormData();
+            fd.append('file', file);
+            
+            // Re-calling upload with Multipart support shortly
+            alert("Iniciando upload... a página irá recarregar ao terminar.");
+            const res = await fetch('/api/media/upload_multipart', {
+                method: 'POST',
+                body: fd
+            });
+            location.reload();
+        });
+    </script>
+</body>
+</html>
