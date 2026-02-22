@@ -435,22 +435,28 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
     print(f"[DEBUG] Tentando gerar Pix para {product_id} - R${product['price']}")
     
     # Track "InitiateCheckout" in UTMfy as "waiting_payment" order
+    # Use exact same timestamp for DB and Utmify
+    order_ts = datetime.now(timezone.utc).isoformat()
+    
     user_info = {
         "id": user_id,
         "full_name": user.full_name,
-        "created_at": db_user.get("created_at") if db_user else None
+        "ip": None # Can't get easily from bot, but let's leave it null
     }
     product_info = {
         "id": product_id,
         "name": product['name'],
         "price": product['price']
     }
+    tx_data = {"created_at": order_ts} # For utmfy.py to parse
+    
     asyncio.create_task(utmfy.send_order(
         order_id=identifier,
         status="waiting_payment",
         user_data=user_info,
         product_data=product_info,
-        tracking_data=tracking_data
+        tracking_data=tracking_data,
+        transaction_data=tx_data
     ))
 
     pix_data = await babylon.create_pix_payment(
@@ -466,7 +472,7 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
 
     if pix_data:
         print(f"[DEBUG] Pix gerado com sucesso!")
-        # Log transaction to database with tracking metadata
+        # Log transaction to database with tracking metadata and synchronized timestamp
         database.log_transaction(
             identifier=identifier,
             user_id=user_id,
@@ -474,7 +480,8 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
             amount=product['price'],
             status='pending',
             client_email=client_email,
-            metadata=tracking_data
+            metadata=tracking_data,
+            created_at=order_ts
         )
     else:
         print(f"[DEBUG] FALHA na geração do Pix via Babylon.")

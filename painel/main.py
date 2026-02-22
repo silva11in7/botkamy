@@ -343,15 +343,13 @@ async def receive_webhook(request: Request, data: dict = Body(...)):
                     user_info = {
                         "id": user_id,
                         "full_name": db_user.get("full_name"),
-                        "created_at": db_user.get("created_at")
+                        "created_at": db_user.get("created_at"),
+                        "ip": transaction_data.get("customer", {}).get("ip") # Capture IP from Babylon if available
                     }
                     
-                    # Try to get product info (we have product_id in tx)
-                    # For simplicity, we can use the title from Babylon or tx['product_id']
-                    # We'll assume the product data is needed for the price
                     product_info = {
                         "id": tx.get("product_id"),
-                        "name": tx.get("product_id", "Acesso VIP"), # Use name from tx if we had it, but id is unique
+                        "name": tx.get("product_id", "Acesso VIP"),
                         "price": tx.get("amount")
                     }
                     
@@ -365,6 +363,7 @@ async def receive_webhook(request: Request, data: dict = Body(...)):
                         user_data=user_info,
                         product_data=product_info,
                         tracking_data=tracking_data,
+                        transaction_data=tx, # CRITICAL: This ensures createdAt matches waiting_payment
                         approved_date=approved_now
                     ))
         except Exception as e:

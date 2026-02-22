@@ -64,7 +64,7 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
         logger.error(f"Error fetching user {user_id}: {e}")
         return None
 
-def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None, metadata: Optional[Dict[str, Any]] = None):
+def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None, metadata: Optional[Dict[str, Any]] = None, created_at: str = None):
     supabase = get_supabase()
     if not supabase: return
     data = {
@@ -75,7 +75,7 @@ def log_transaction(identifier: str, user_id: int, product_id: str, amount: floa
         "status": status,
         "payment_method": payment_method,
         "client_email": client_email,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": created_at or datetime.now(timezone.utc).isoformat(),
         "metadata": metadata or {}
     }
     supabase.table("transactions").insert(data).execute()
