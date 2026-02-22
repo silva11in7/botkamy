@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Central de Mídias | Kamy Control</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
@@ -14,29 +14,33 @@
             --text-main: #ffffff;
             --text-dim: #888888;
             --success: #00ff88;
+            --iphone-bg: #ffffff;
+            --iphone-bezel: #1a1a1a;
         }
 
         body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; overflow-x: hidden; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; min-height: 100vh; }
+        .main-wrapper { display: flex; width: 100%; margin-left: 260px; }
+        .content-area { flex: 1; padding: 2rem 3rem; max-width: 900px; }
+        .preview-area { width: 450px; padding: 2rem; position: sticky; top: 0; height: 100vh; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.02); border-left: 1px solid var(--border); }
 
+        /* Left Side Styles */
         .upload-zone {
             background: rgba(255, 45, 85, 0.05);
             border: 2px dashed var(--primary);
             border-radius: 24px;
-            padding: 3rem;
+            padding: 2rem;
             text-align: center;
-            margin-bottom: 3rem;
+            margin-bottom: 2rem;
             cursor: pointer;
             transition: 0.3s;
         }
-
         .upload-zone:hover { background: rgba(255, 45, 85, 0.1); }
 
         .media-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1.2rem;
+            margin-top: 1.5rem;
         }
 
         .media-card {
@@ -44,107 +48,149 @@
             border: 1px solid var(--border);
             border-radius: 20px;
             overflow: hidden;
-            position: relative;
+            cursor: pointer;
             transition: 0.3s;
         }
+        .media-card:hover, .media-card.active { transform: translateY(-5px); border-color: var(--primary); box-shadow: 0 10px 30px rgba(255, 45, 85, 0.2); }
 
-        .media-card:hover { transform: translateY(-5px); border-color: var(--primary); }
-
-        .media-preview {
-            width: 100%;
-            height: 150px;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
+        .media-preview { width: 100%; height: 120px; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         .media-preview img, .media-preview video { width: 100%; height: 100%; object-fit: cover; }
 
-        .media-info { padding: 1rem; }
-        .file-name { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .media-info { padding: 0.8rem; }
+        .file-name { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .actions { display: flex; gap: 8px; margin-top: 10px; }
-        .btn-action { flex: 1; background: #222; border: none; color: white; padding: 6px; border-radius: 8px; cursor: pointer; font-size: 0.7rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; }
-        .btn-delete { background: rgba(255, 77, 77, 0.1); color: #ff4d4d; }
+        .mapping-section { background: var(--card-bg); border-radius: 24px; padding: 1.5rem; margin-top: 2rem; border: 1px solid var(--border); }
+        .mapping-row { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 0; border-bottom: 1px solid var(--border); }
+        .mapping-label { font-size: 0.9rem; font-weight: 600; }
+        select { background: #1a1a1a; border: 1px solid var(--border); color: white; padding: 6px 10px; border-radius: 8px; font-size: 0.8rem; }
 
-        /* Mapping Section */
-        .mapping-section {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 2rem;
-            margin-top: 3rem;
+        /* iPhone 17 Mockup Styles */
+        .iphone-17 {
+            width: 320px;
+            height: 650px;
+            background: #000;
+            border-radius: 50px;
+            padding: 12px;
+            position: relative;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.5), inset 0 0 4px rgba(255,255,255,0.2);
+            border: 4px solid #333;
         }
 
-        .mapping-row {
+        .screen {
+            width: 100%;
+            height: 100%;
+            background: #1c1c1d url('https://w0.peakpx.com/wallpaper/550/333/HD-wallpaper-telegram-pattern-dark.jpg');
+            background-size: cover;
+            border-radius: 40px;
+            overflow: hidden;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 0;
-            border-bottom: 1px solid var(--border);
+            flex-direction: column;
+            position: relative;
         }
 
-        .mapping-label { font-weight: 600; }
-        .mapping-value { color: var(--primary); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+        /* Island (Dynamic Island) */
+        .island {
+            width: 100px;
+            height: 25px;
+            background: #000;
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 20px;
+            z-index: 10;
+        }
 
-        select { background: #1a1a1a; border: 1px solid var(--border); color: white; padding: 8px 12px; border-radius: 8px; outline: none; }
+        /* Telegram UI Mockup */
+        .chat-header {
+            height: 60px;
+            background: rgba(30, 30, 30, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            padding-top: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        
+        .msg { max-width: 85%; padding: 10px 15px; border-radius: 18px; font-size: 0.85rem; line-height: 1.4; position: relative; }
+        .msg.bot { background: #2b2b2d; color: white; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .msg.bot img, .msg.bot video { width: calc(100% + 30px); margin: -10px -15px 10px -15px; border-radius: 18px 18px 0 0; max-height: 200px; object-fit: cover; }
+        
+        .chat-footer {
+            height: 50px;
+            background: rgba(30, 30, 30, 0.95);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .btn-telegram {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            margin-top: 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
     {% include 'base_sidebar.html' %}
 
-    <main class="main">
-        <header style="margin-bottom: 2rem;">
-            <h1 style="margin:0; font-size: 2rem; font-weight: 800;">Central de Mídias HUD</h1>
-            <p style="color:var(--text-dim); margin-top: 5px;">Gerencie fotos e vídeos que o seu robô utiliza.</p>
-        </header>
+    <div class="main-wrapper">
+        <main class="content-area">
+            <header style="margin-bottom: 2rem;">
+                <h1 style="margin:0; font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, #fff, #ff2d55); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Mídias & Preview</h1>
+                <p style="color:var(--text-dim);">Envie arquivos e visualize o resultado no simulador.</p>
+            </header>
 
-        <!-- Hidden File Input -->
-        <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*">
-        
-        <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
-            <i data-lucide="upload-cloud" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 1rem;"></i>
-            <h2 style="margin:0">Arraste ou clique para enviar</h2>
-            <p style="color:var(--text-dim)">Suporta imagens (JPG, PNG) e vídeos (MP4)</p>
-        </div>
+            <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*">
+            <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                <i data-lucide="upload-cloud" style="width: 40px; height: 40px; color: var(--primary); margin-bottom: 0.5rem;"></i>
+                <h3 style="margin:0">Upload de Conteúdo</h3>
+                <p style="color:var(--text-dim); font-size: 0.8rem">JPG, PNG ou MP4 (Máx 50MB)</p>
+            </div>
 
-        <h2 style="border-left: 4px solid var(--primary); padding-left: 15px;">Arquivos no Servidor</h2>
-        <div class="media-grid">
-            {% for file in files %}
-            <div class="media-card">
-                <div class="media-preview">
-                    {% if file.name.lower().endswith(('.mp4', '.mov')) %}
-                        <video src="{{ file.url }}" muted></video>
-                        <div style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); padding:4px; border-radius:4px;"><i data-lucide="video" style="width:12px"></i></div>
-                    {% else %}
-                        <img src="{{ file.url }}">
-                    {% endif %}
-                </div>
-                <div class="media-info">
-                    <div class="file-name" title="{{ file.name }}">{{ file.name }}</div>
-                    <div class="actions">
-                        <form action="/api/media/delete" method="post" style="flex:1">
-                            <input type="hidden" name="filename" value="{{ file.name }}">
-                            <button type="submit" class="btn-action btn-delete"><i data-lucide="trash-2" style="width:12px"></i> Apagar</button>
-                        </form>
+            <div class="media-grid">
+                {% for file in files %}
+                <div class="media-card" onclick="updatePreview('{{ file.url }}', '{{ file.name }}', {{ 'true' if file.name.lower().endswith(('.mp4', '.mov')) else 'false' }})">
+                    <div class="media-preview">
+                        {% if file.name.lower().endswith(('.mp4', '.mov')) %}
+                            <video src="{{ file.url }}" muted></video>
+                        {% else %}
+                            <img src="{{ file.url }}">
+                        {% endif %}
+                    </div>
+                    <div class="media-info">
+                        <div class="file-name">{{ file.name }}</div>
+                        <div style="display:flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span style="font-size: 10px; color:var(--primary); font-weight: 800;">Ativo</span>
+                            <form action="/api/media/delete" method="post">
+                                <input type="hidden" name="filename" value="{{ file.name }}">
+                                <button type="submit" style="background:none; border:none; color:var(--text-dim); cursor:pointer"><i data-lucide="trash-2" style="width:14px"></i></button>
+                            </form>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
 
-        <div class="mapping-section">
-            <h2 style="margin-top:0"><i data-lucide="settings-2" style="vertical-align:middle"></i> Atribuição Dinâmica</h2>
-            <p style="color:var(--text-dim); font-size: 0.9rem; margin-bottom: 2rem;">Vincule cada mídia a uma função do robô.</p>
-            
-            <div class="mapping-container">
-                {% for key, current in mapping.items() %}
-                <div class="mapping-row">
-                    <div class="mapping-label">{{ key.replace('_', ' ').title() }}</div>
-                    <div style="display:flex; gap: 15px; align-items:center">
-                        <span class="mapping-value">{{ current.split('/')[-1] if current else 'Padrão' }}</span>
+            <div class="mapping-section">
+                <h2 style="margin-top:0; font-size: 1.2rem;"><i data-lucide="link-2" style="vertical-align:middle; margin-right: 8px; color:var(--primary)"></i> Gatilhos de Mídia</h2>
+                <div class="mapping-container">
+                    {% for key, current in mapping.items() %}
+                    <div class="mapping-row">
+                        <div class="mapping-label">{{ key.replace('_', ' ').title() }}</div>
                         <form action="/api/media/map" method="post">
                             <input type="hidden" name="key" value="{{ key }}">
                             <select name="filename" onchange="this.form.submit()">
@@ -155,54 +201,68 @@
                             </select>
                         </form>
                     </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
-        </div>
-    </main>
+        </main>
+
+        <aside class="preview-area">
+            <div class="iphone-17">
+                <div class="island"></div>
+                <div class="screen">
+                    <div class="chat-header">
+                        <div style="width: 32px; height: 32px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">K</div>
+                        <div style="margin-left: 10px;">
+                            <div style="font-size: 14px; font-weight: 700;">Kamy 🔥</div>
+                            <div style="font-size: 10px; color: #00ff88;">online</div>
+                        </div>
+                    </div>
+                    <div class="chat-body" id="chatDisplay">
+                        <div class="msg bot">
+                            <div id="mediaPlaceholder">
+                                <img src="https://i.ibb.co/VWVvN1P/3banner.jpg" alt="Preview">
+                            </div>
+                            <div style="font-size: 12px;">
+                                <b>Kamy:</b> Olá gatão! Escolha seu plano abaixo e comece agora:
+                                <button class="btn-telegram">🔥 VIP VITALÍCIO - R$19,90</button>
+                                <button class="btn-telegram">💎 VIP MENSAL - R$14,90</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-footer">
+                        <div style="flex: 1; background: #2b2b2d; padding: 6px 15px; border-radius: 20px; color: #888; font-size: 12px;">Mensagem...</div>
+                        <i data-lucide="send" style="width: 18px; color: var(--primary); margin-left: 10px;"></i>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
 
     <script>
         lucide.createIcons();
 
-        // Handle File Upload
+        function updatePreview(url, name, isVideo) {
+            const placeholder = document.getElementById('mediaPlaceholder');
+            if (isVideo) {
+                placeholder.innerHTML = `<video src="${url}" autoplay muted loop style="width:100%; height:180px; object-fit:cover; border-radius:18px 18px 0 0;"></video>`;
+            } else {
+                placeholder.innerHTML = `<img src="${url}" style="width:100%; height:180px; object-fit:cover; border-radius:18px 18px 0 0;">`;
+            }
+
+            // Highlight the card
+            document.querySelectorAll('.media-card').forEach(c => c.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
         document.getElementById('fileInput').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            const formData = new FormData();
-            // We use simple bytes upload or multipart. Let's use standard POST for better compatibility.
-            // But main.py expects bytes = Body(...). Let's adjust JS to send raw.
-            
-            const reader = new FileReader();
-            reader.onload = async () => {
-                try {
-                    const response = await fetch('/api/media/upload', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/octet-stream',
-                            'X-Filename': file.name // We'll need to update main.py to read filename from header if we use raw Body
-                        },
-                        body: reader.result
-                    });
-                    
-                    // Actually, let's just use standard form upload for simplicity and update main.py
-                    location.reload();
-                } catch (err) {
-                    alert("Erro no upload");
-                }
-            };
-            // reader.readAsArrayBuffer(file);
-            
-            // Refactored Simple Upload using standard Form
             const fd = new FormData();
             fd.append('file', file);
             
-            // Re-calling upload with Multipart support shortly
-            alert("Iniciando upload... a página irá recarregar ao terminar.");
-            const res = await fetch('/api/media/upload_multipart', {
-                method: 'POST',
-                body: fd
-            });
+            alert("Enviando mídia... o simulador será atualizado automaticamente.");
+            await fetch('/api/media/upload_multipart', { method: 'POST', body: fd });
             location.reload();
         });
     </script>
