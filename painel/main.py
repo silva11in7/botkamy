@@ -161,12 +161,28 @@ async def vendas(request: Request):
     transactions = database.get_all_transactions(100)
     return templates.TemplateResponse("vendas.html", {"request": request, "transactions": transactions, "active_page": "vendas"})
 
-# Usuários Page
 @app.get("/usuarios", response_class=HTMLResponse)
 async def usuarios(request: Request):
     if not get_current_user(request): return RedirectResponse(url="/")
     users = database.get_all_users(1000)
     return templates.TemplateResponse("usuarios.html", {"request": request, "users": users, "active_page": "usuarios"})
+
+@app.get("/usuarios/{user_id}", response_class=HTMLResponse)
+async def user_detail(request: Request, user_id: int):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    user = database.get_user(user_id)
+    if not user: raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    
+    events = database.get_user_events(user_id)
+    transactions = database.get_user_transactions(user_id)
+    
+    return templates.TemplateResponse("usuario_detalhe.html", {
+        "request": request, 
+        "user": user, 
+        "events": events, 
+        "transactions": transactions,
+        "active_page": "usuarios"
+    })
 
 # **NOVO: Gestão de Produtos**
 @app.get("/produtos", response_class=HTMLResponse)
@@ -264,6 +280,13 @@ async def get_chart_data():
     # Reverse for chronological order
     data.reverse()
     labels = [d['day'] for d in data]
+    values = [d['total'] for d in data]
+    return JSONResponse({"labels": labels, "values": values})
+
+@app.get("/api/stats/sources")
+async def get_source_data():
+    data = database.get_revenue_by_source()
+    labels = [d['source'] for d in data]
     values = [d['total'] for d in data]
     return JSONResponse({"labels": labels, "values": values})
 

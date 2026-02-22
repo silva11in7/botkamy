@@ -54,6 +54,7 @@
                         <th>Nome Completo</th>
                         <th>Username</th>
                         <th>Data de Entrada</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -68,9 +69,14 @@
                         </td>
                         <td><span style="color:var(--primary)">@{{ user.username or "Sem Username" }}</span></td>
                         <td style="color:var(--text-dim)">{{ user.created_at[:16] }}</td>
+                        <td>
+                            <a href="/usuarios/{{ user.id }}" style="color:var(--primary); text-decoration:none; font-size:0.8rem; display:flex; align-items:center; gap:5px">
+                                <i data-lucide="eye" style="width:14px"></i> Ver Histórico
+                            </a>
+                        </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="4" style="text-align:center; padding: 4rem; color:var(--text-dim)">Nenhum usuário registrado ainda.</td></tr>
+                    <tr><td colspan="5" style="text-align:center; padding: 4rem; color:var(--text-dim)">Nenhum usuário registrado ainda.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

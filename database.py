@@ -366,3 +366,41 @@ def get_transaction(identifier: str) -> Optional[Dict[str, Any]]:
     supabase = get_supabase()
     response = supabase.table("transactions").select("*").eq("id", identifier).maybe_single().execute()
     return response.data if response.data else None
+
+# --- Analytics v3: UTM & CRM ---
+def get_revenue_by_source():
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        # Join transactions with users to get UTMs
+        response = supabase.table("transactions").select("amount, users!inner(utm_source)").eq("status", "confirmed").execute()
+        
+        sources = {}
+        for row in response.data:
+            src = row['users'].get('utm_source') or "Direto / Orgânico"
+            sources[src] = sources.get(src, 0.0) + row['amount']
+            
+        return [{"source": s, "total": v} for s, v in sorted(sources.items(), key=lambda x: x[1], reverse=True)]
+    except Exception as e:
+        logger.error(f"Error fetching source analytics: {e}")
+        return []
+
+def get_user_events(user_id: int):
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        response = supabase.table("funnel_events").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching user events: {e}")
+        return []
+
+def get_user_transactions(user_id: int):
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        response = supabase.table("transactions").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching user transactions: {e}")
+        return []

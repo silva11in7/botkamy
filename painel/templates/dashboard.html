@@ -46,11 +46,17 @@
             </div>
         </div>
 
-        <div class="chart-container" style="display:grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; background:transparent; border:none; padding:0">
+        <div class="chart-container" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; background:transparent; border:none; padding:0">
             <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem">
                 <h3 style="margin-top:0">Faturamento (7 dias)</h3>
                 <canvas id="revenueChart" height="150"></canvas>
             </div>
+            
+            <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem">
+                <h3 style="margin-top:0">Vendas por Fonte (UTM)</h3>
+                <canvas id="sourceChart" height="150"></canvas>
+            </div>
+
             <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem">
                 <h3 style="margin-top:0">Funil de Vendas</h3>
                 <div class="funnel-bar" style="margin-bottom:1rem">
@@ -109,18 +115,19 @@
     <script>
         lucide.createIcons();
         
-        async function loadChart() {
-            const res = await fetch('/api/stats/revenue');
-            const data = await res.json();
+        async function loadCharts() {
+            // Load Revenue Chart
+            const resRev = await fetch('/api/stats/revenue');
+            const dataRev = await resRev.json();
             
-            const ctx = document.getElementById('revenueChart').getContext('2d');
-            new Chart(ctx, {
+            const ctxRev = document.getElementById('revenueChart').getContext('2d');
+            new Chart(ctxRev, {
                 type: 'line',
                 data: {
-                    labels: data.labels,
+                    labels: dataRev.labels,
                     datasets: [{
                         label: 'Receita Diária (R$)',
-                        data: data.values,
+                        data: dataRev.values,
                         borderColor: '#ff2d55',
                         backgroundColor: 'rgba(255, 45, 85, 0.1)',
                         fill: true,
@@ -136,8 +143,38 @@
                     plugins: { legend: { display: false } }
                 }
             });
+
+            // Load Source Chart
+            const resSrc = await fetch('/api/stats/sources');
+            const dataSrc = await resSrc.json();
+            
+            const ctxSrc = document.getElementById('sourceChart').getContext('2d');
+            new Chart(ctxSrc, {
+                type: 'doughnut',
+                data: {
+                    labels: dataSrc.labels,
+                    datasets: [{
+                        data: dataSrc.values,
+                        backgroundColor: [
+                            '#ff2d55', '#00d97e', '#ffcc00', '#007aff', '#ff9500', '#5856d6'
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    cutout: '70%',
+                    plugins: { 
+                        legend: { 
+                            position: 'bottom',
+                            labels: { color: '#888', font: { size: 10 }, usePointStyle: true }
+                        } 
+                    }
+                }
+            });
         }
-        loadChart();
+        loadCharts();
     </script>
 </body>
 </html>
