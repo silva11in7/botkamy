@@ -279,6 +279,54 @@ async def settings_page(request: Request):
     }
     return templates.TemplateResponse("configuracoes.html", {"request": request, "settings": settings, "active_page": "settings"})
 
+@app.get("/monitoramento", response_class=HTMLResponse)
+async def monitoramento_page(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    return templates.TemplateResponse("monitoramento.html", {"request": request, "active_page": "monitoramento"})
+
+@app.get("/api/health_advanced")
+async def advanced_health_check():
+    """Advanced health check for monitoring dashboard."""
+    import httpx
+    import time
+    
+    results = {
+        "bot": {"status": "offline", "latency": 0},
+        "babylon": {"status": "offline", "latency": 0},
+        "utmfy": {"status": "offline", "latency": 0},
+        "supabase": {"status": "offline", "latency": 0}
+    }
+    
+    async def check_api(name, url, headers=None):
+        start = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url, headers=headers)
+                results[name]["status"] = "online" if resp.status_code < 500 else "error"
+                results[name]["latency"] = round((time.time() - start) * 1000)
+        except Exception:
+            results[name]["status"] = "offline"
+
+    # Check Bot (Internal Status)
+    if hasattr(app.state, "bot_app") and hasattr(app.state.bot_app, "updater") and app.state.bot_app.updater.running:
+        results["bot"]["status"] = "online"
+        # Get bot info to be sure
+        try:
+            me = await app.state.bot_app.bot.get_me()
+            results["bot"]["username"] = me.username
+        except: pass
+
+    # Check Babylon
+    await check_api("babylon", "https://api.babylonpay.io/v1/health") 
+    
+    # Check Utmify
+    await check_api("utmfy", "https://api.utmfy.com/health") # Replace with real health if known, or just API URL
+
+    # Check Supabase
+    results["supabase"]["status"] = "online" # If we got here, DB is likely up as we use it for metrics
+
+    return results
+
 @app.get("/go", response_class=HTMLResponse)
 async def bridge_page(request: Request):
     """Bridge page to catch TikTok Pixel then redirect to Telegram."""

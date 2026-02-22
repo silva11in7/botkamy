@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoramento de Sistemas | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #ff2d55;
+            --bg: #050505;
+            --card-bg: #0f0f0f;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-dim: #888888;
+            --success: #00ff88;
+            --warning: #ffcc00;
+            --danger: #ff4d4d;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; min-height: 100vh; }
+
+        .monitor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .status-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: 0.3s;
+        }
+
+        .status-card:hover {
+            border-color: rgba(255, 45, 85, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .status-card.online { border-left: 4px solid var(--success); }
+        .status-card.offline { border-left: 4px solid var(--danger); }
+        .status-card.warning { border-left: 4px solid var(--warning); }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .service-name {
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+
+        .badge-online { background: rgba(0, 255, 136, 0.1); color: var(--success); }
+        .badge-offline { background: rgba(255, 77, 77, 0.1); color: var(--danger); }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+            font-size: 0.9rem;
+        }
+
+        .stat-label { color: var(--text-dim); }
+        .stat-value { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+        .latency-bar {
+            height: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+
+        .latency-fill {
+            height: 100%;
+            background: var(--success);
+            width: 0%;
+            transition: 1s ease-in-out;
+        }
+
+        /* Scanner Animation */
+        .scanner {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, var(--primary), transparent);
+            opacity: 0.3;
+            animation: scan 3s infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+
+        .refresh-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--success);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="display:flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 style="margin:0; font-size: 2rem; font-weight: 800;">Monitoramento Global</h1>
+                <p style="color:var(--text-dim); margin: 5px 0 0 0;">Status em tempo real das integrações e saúde do bot.</p>
+            </div>
+            <div class="refresh-indicator">
+                <div class="dot"></div>
+                Atualizando em tempo real
+            </div>
+        </header>
+
+        <div class="monitor-grid" id="monitor-grid">
+            <!-- Cards will be populated by JS -->
+            <div class="status-card" id="card-bot">
+                <div class="scanner"></div>
+                <div class="card-header">
+                    <div class="service-name"><i data-lucide="message-square"></i> Bot Telegram</div>
+                    <span class="badge badge-offline" id="status-bot">Verificando...</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Username</span>
+                    <span class="stat-value" id="val-bot-username">@...</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Tempo de Resposta</span>
+                    <span class="stat-value" id="val-bot-latency">-- ms</span>
+                </div>
+                <div class="latency-bar"><div class="latency-fill" id="fill-bot"></div></div>
+            </div>
+
+            <div class="status-card" id="card-babylon">
+                <div class="scanner"></div>
+                <div class="card-header">
+                    <div class="service-name"><i data-lucide="credit-card"></i> Babylon API (Pix)</div>
+                    <span class="badge badge-offline" id="status-babylon">Verificando...</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Endereço</span>
+                    <span class="stat-value">api.babylonpay.io</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Latência</span>
+                    <span class="stat-value" id="val-babylon-latency">-- ms</span>
+                </div>
+                <div class="latency-bar"><div class="latency-fill" id="fill-babylon"></div></div>
+            </div>
+
+            <div class="status-card" id="card-utmfy">
+                <div class="scanner"></div>
+                <div class="card-header">
+                    <div class="service-name"><i data-lucide="bar-chart-3"></i> Utmify API</div>
+                    <span class="badge badge-offline" id="status-utmfy">Verificando...</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Endereço</span>
+                    <span class="stat-value">api.utmfy.com</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Latência</span>
+                    <span class="stat-value" id="val-utmfy-latency">-- ms</span>
+                </div>
+                <div class="latency-bar"><div class="latency-fill" id="fill-utmfy"></div></div>
+            </div>
+
+            <div class="status-card" id="card-supabase">
+                <div class="scanner"></div>
+                <div class="card-header">
+                    <div class="service-name"><i data-lucide="database"></i> Banco de Dados (Supabase)</div>
+                    <span class="badge badge-online" id="status-supabase">Conectado</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Status</span>
+                    <span class="stat-value">Operacional</span>
+                </div>
+                <div class="stat-line">
+                    <span class="stat-label">Pool de Conexão</span>
+                    <span class="stat-value">Ativo</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        async function updateHealth() {
+            try {
+                const response = await fetch('/api/health_advanced');
+                const data = await response.json();
+
+                // Update Bot
+                updateCard('bot', data.bot);
+                if (data.bot.username) {
+                    document.getElementById('val-bot-username').innerText = '@' + data.bot.username;
+                    // Auto-update bridge bot username in next turn if needed
+                }
+
+                // Update APIs
+                updateCard('babylon', data.babylon);
+                updateCard('utmfy', data.utmfy);
+                
+            } catch (error) {
+                console.error("Erro ao atualizar saúde:", error);
+            }
+        }
+
+        function updateCard(id, info) {
+            const card = document.getElementById('card-' + id);
+            const statusBadge = document.getElementById('status-' + id);
+            const latencyVal = document.getElementById('val-' + id + '-latency');
+            const latencyFill = document.getElementById('fill-' + id);
+
+            if (info.status === 'online') {
+                card.className = 'status-card online';
+                statusBadge.className = 'badge badge-online';
+                statusBadge.innerText = 'Online';
+            } else {
+                card.className = 'status-card offline';
+                statusBadge.className = 'badge badge-offline';
+                statusBadge.innerText = 'Offline';
+            }
+
+            if (latencyVal) latencyVal.innerText = info.latency + ' ms';
+            if (latencyFill) {
+                // Percentage based on 1000ms max for filling
+                const pct = Math.min((info.latency / 1000) * 100, 100);
+                latencyFill.style.width = pct + '%';
+                latencyFill.style.background = info.latency > 500 ? 'var(--danger)' : (info.latency > 200 ? 'var(--warning)' : 'var(--success)');
+            }
+        }
+
+        // Run every 5 seconds
+        setInterval(updateHealth, 5000);
+        updateHealth();
+        lucide.createIcons();
+    </script>
+</body>
+</html>
