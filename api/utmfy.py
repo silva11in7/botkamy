@@ -97,8 +97,7 @@ async def send_order(
             "email": user_data.get("email") or f"user_{user_data.get('id')}@telegram.com",
             "phone": str(user_data.get("id")),
             "document": None,
-            "country": "BR",
-            "ip": user_data.get("ip")
+            "country": "BR"
         },
         "products": [
             {
@@ -126,6 +125,10 @@ async def send_order(
         },
         "isTest": False
     }
+
+    # Add IP if present
+    if user_data.get("ip"):
+        payload["customer"]["ip"] = user_data["ip"]
 
     headers = {
         "x-api-token": token,

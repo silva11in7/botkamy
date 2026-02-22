@@ -184,8 +184,10 @@ def get_setting(key: str, default: str = "") -> str:
     supabase = get_supabase()
     if not supabase: return default
     try:
-        response = supabase.table("settings").select("value").eq("key", key).maybe_single().execute()
-        return response.data['value'] if response.data else default
+        response = supabase.table("settings").select("value").eq("key", key).limit(1).execute()
+        if response and response.data and len(response.data) > 0:
+            return response.data[0]['value']
+        return default
     except Exception as e:
         logger.error(f"Error getting setting {key}: {e}")
         return default
@@ -248,8 +250,10 @@ def get_bot_content(key: str, default: str = "") -> str:
     supabase = get_supabase()
     if not supabase: return default
     try:
-        response = supabase.table("bot_content").select("value").eq("key", key).maybe_single().execute()
-        return response.data['value'] if response.data else default
+        response = supabase.table("bot_content").select("value").eq("key", key).limit(1).execute()
+        if response and response.data and len(response.data) > 0:
+            return response.data[0]['value']
+        return default
     except Exception as e:
         logger.error(f"Error getting bot content {key}: {e}")
         return default
