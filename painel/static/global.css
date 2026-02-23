@@ -1,0 +1,315 @@
+/* ============================================
+   KAMY CONTROL — GLOBAL DESIGN SYSTEM v4
+   Theme Toggle + Responsive + Shared Styles
+   ============================================ */
+
+/* === DARK THEME (Default) === */
+:root,
+[data-theme="dark"] {
+  --primary: #ff2d55;
+  --primary-glow: rgba(255, 45, 85, 0.15);
+  --bg: #050505;
+  --bg-elevated: #0a0a0a;
+  --card-bg: #0f0f0f;
+  --border: rgba(255, 255, 255, 0.08);
+  --text-main: #ffffff;
+  --text-dim: #888888;
+  --success: #00d97e;
+  --warning: #f5a623;
+  --danger: #ff4d4d;
+  --input-bg: #000000;
+  --sidebar-bg: #000000;
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+}
+
+/* === LIGHT THEME === */
+[data-theme="light"] {
+  --primary: #e91e50;
+  --primary-glow: rgba(233, 30, 80, 0.1);
+  --bg: #f4f5f7;
+  --bg-elevated: #ffffff;
+  --card-bg: #ffffff;
+  --border: rgba(0, 0, 0, 0.08);
+  --text-main: #1a1a2e;
+  --text-dim: #6b7280;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --input-bg: #f0f1f3;
+  --sidebar-bg: #ffffff;
+  --overlay-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* === BASE RESET === */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background: var(--bg);
+  color: var(--text-main);
+  display: flex;
+  min-height: 100vh;
+  transition:
+    background 0.3s,
+    color 0.3s;
+}
+
+/* === SIDEBAR === */
+.sidebar {
+  width: 260px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 200;
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.logo {
+  font-size: 1.35rem;
+  font-weight: 800;
+  background: linear-gradient(to right, var(--primary), #ff7171);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+}
+.theme-toggle:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-glow);
+}
+
+.nav-items {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-item {
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  color: var(--text-dim);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: 0.2s;
+  margin-bottom: 0.3rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.nav-item:hover {
+  background: var(--card-bg);
+  color: var(--text-main);
+}
+.nav-item.active {
+  background: var(--primary-glow);
+  color: var(--primary);
+}
+.nav-item i,
+.nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.nav-spacer {
+  flex: 1;
+}
+
+.nav-item.logout-item {
+  color: #ff4d4d;
+}
+.nav-item.logout-item:hover {
+  background: rgba(255, 77, 77, 0.1);
+}
+
+/* === HAMBURGER (Mobile Only) === */
+.hamburger {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 300;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.hamburger:hover {
+  border-color: var(--primary);
+}
+
+/* === OVERLAY (Mobile Only) === */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  z-index: 150;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.sidebar-overlay.visible {
+  display: block;
+  opacity: 1;
+}
+
+/* === MAIN CONTENT === */
+.main {
+  margin-left: 260px;
+  flex: 1;
+  padding: 2rem 3rem;
+  min-height: 100vh;
+  transition: margin 0.3s;
+}
+
+/* === RESPONSIVE — TABLET === */
+@media (max-width: 1024px) {
+  .main {
+    padding: 1.5rem 2rem;
+  }
+}
+
+/* === RESPONSIVE — MOBILE === */
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .main {
+    margin-left: 0;
+    padding: 1.25rem 1rem;
+    padding-top: 4.5rem; /* space for hamburger */
+  }
+
+  /* Responsive tables */
+  table {
+    font-size: 0.8rem;
+  }
+  th,
+  td {
+    padding: 0.75rem 0.5rem !important;
+  }
+
+  /* Responsive grids */
+  .metrics-grid,
+  .monitor-grid,
+  .gw-grid,
+  .integration-grid,
+  .detail-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .detail-card[style*="grid-column: span 2"] {
+    grid-column: span 1 !important;
+  }
+}
+
+/* === SHARED CARD STYLES === */
+.card {
+  background: var(--card-bg);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  transition:
+    border-color 0.3s,
+    background 0.3s;
+}
+.card:hover {
+  border-color: rgba(255, 45, 85, 0.2);
+}
+
+/* === SHARED FORM STYLES === */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  transition:
+    background 0.3s,
+    border-color 0.3s,
+    color 0.3s;
+}
+
+/* === SHARED BUTTON === */
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(255, 45, 85, 0.3);
+}
+
+/* === SMOOTH TRANSITIONS ON THEME SWITCH === */
+.sidebar,
+.card,
+.metric-card,
+.status-card,
+.table-card,
+.section-card,
+.chart-container,
+.gw-card,
+.add-section,
+.modal {
+  transition:
+    background 0.3s,
+    border-color 0.3s,
+    color 0.3s;
+}

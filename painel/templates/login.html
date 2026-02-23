@@ -4,71 +4,75 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Login | Kamy Bot</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/global.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
     <style>
-      :root {
-        --primary: #ff2d55;
-        --secondary: #1a1a1a;
-        --bg: #0a0a0a;
-        --text: #ffffff;
-        --glass: rgba(255, 255, 255, 0.05);
-        --glass-border: rgba(255, 255, 255, 0.1);
-      }
-
       body {
         margin: 0;
         padding: 0;
-        font-family: "Inter", sans-serif;
-        background: var(--bg);
-        color: var(--text);
         height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        background: var(--bg);
+        transition: background 0.5s ease;
+      }
+
+      body::before {
+        content: '';
+        position: absolute;
+        width: 150%;
+        height: 150%;
+        background: radial-gradient(circle at center, var(--primary-glow) 0%, transparent 70%);
+        z-index: -1;
+        animation: pulse 10s infinite alternate;
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(1); opacity: 0.3; }
+        100% { transform: scale(1.2); opacity: 0.6; }
       }
 
       .login-card {
-        background: var(--glass);
-        backdrop-filter: blur(20px);
-        border: 1px solid var(--glass-border);
+        background: var(--card-bg);
+        backdrop-filter: blur(30px);
+        border: 1px solid var(--border);
         padding: 3rem;
-        border-radius: 24px;
+        border-radius: 32px;
         width: 100%;
         max-width: 400px;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        animation: fadeIn 0.8s ease-out;
+        box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4);
+        position: relative;
+        z-index: 10;
+        transition: background 0.3s, border-color 0.3s;
       }
 
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+      .top-actions {
+        position: absolute;
+        top: 2rem;
+        right: 2rem;
+        z-index: 20;
       }
 
       h1 {
-        font-size: 2rem;
+        font-size: 2.2rem;
         font-weight: 800;
         margin-bottom: 0.5rem;
         text-align: center;
-        background: linear-gradient(to right, #ff2d55, #ff7171);
+        background: linear-gradient(to right, var(--primary), #ff7171);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
       }
 
       p {
-        color: #888;
+        color: var(--text-dim);
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 2.5rem;
+        font-size: 0.95rem;
       }
 
       .input-group {
@@ -77,75 +81,115 @@
 
       label {
         display: block;
-        margin-bottom: 0.5rem;
-        font-size: 0.875rem;
-        color: #aaa;
+        margin-bottom: 0.6rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-dim);
       }
 
       input {
         width: 100%;
-        padding: 0.75rem 0;
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid var(--glass-border);
-        color: white;
+        padding: 0.8rem 1rem;
+        background: var(--input-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        color: var(--text-main);
         font-size: 1rem;
         outline: none;
-        transition: border-color 0.3s;
+        transition: all 0.3s;
+        box-sizing: border-box;
       }
 
       input:focus {
         border-color: var(--primary);
+        box-shadow: 0 0 0 4px var(--primary-glow);
       }
 
-      button {
+      .login-btn {
         width: 100%;
         padding: 1rem;
-        border-radius: 12px;
+        border-radius: 14px;
         border: none;
         background: var(--primary);
         color: white;
-        font-weight: 600;
+        font-weight: 700;
         font-size: 1rem;
         cursor: pointer;
         transition: all 0.3s;
         margin-top: 1rem;
+        box-shadow: 0 10px 30px rgba(255, 45, 85, 0.3);
       }
 
-      button:hover {
+      .login-btn:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 20px -5px rgba(255, 45, 85, 0.4);
         filter: brightness(1.1);
+        box-shadow: 0 15px 40px rgba(255, 45, 85, 0.5);
       }
 
       .error {
-        color: var(--primary);
+        color: var(--danger);
+        background: rgba(255, 77, 77, 0.1);
+        border: 1px solid rgba(255, 77, 77, 0.2);
+        padding: 0.8rem;
+        border-radius: 10px;
         text-align: center;
-        margin-top: 1rem;
-        font-size: 0.875rem;
+        margin-top: 1.5rem;
+        font-size: 0.85rem;
+      }
+
+      .login-theme-toggle {
+          position: absolute;
+          top: 1.5rem;
+          right: 1.5rem;
+          background: var(--input-bg);
+          border: 1px solid var(--border);
+          color: var(--text-dim);
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: 0.2s;
+      }
+      .login-theme-toggle:hover {
+          color: var(--primary);
+          border-color: var(--primary);
       }
     </style>
   </head>
   <body>
     <div class="login-card">
-      <h1>Bot Kamy Admin</h1>
-      <p>Acesse o centro de comando</p>
+      <button class="login-theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Alternar Tema">
+          <i data-lucide="sun"></i>
+      </button>
+
+      <h1>Admin Panel</h1>
+      <p>Kamy Control Center</p>
 
       <form action="/login" method="post">
         <div class="input-group">
           <label>Usuário</label>
-          <input type="text" name="username" required />
+          <input type="text" name="username" required placeholder="Digite seu usuário..." />
         </div>
         <div class="input-group">
           <label>Senha</label>
-          <input type="password" name="password" required />
+          <input type="password" name="password" required placeholder="••••••••" />
         </div>
-        <button type="submit">Entrar no Painel</button>
+        <button type="submit" class="login-btn">Entrar no Painel</button>
       </form>
 
       {% if error %}
-      <div class="error">{{ error }}</div>
+      <div class="error">
+        <i data-lucide="alert-circle" style="width:14px; vertical-align:middle; margin-right:4px"></i>
+        {{ error }}
+      </div>
       {% endif %}
     </div>
+
+    <script>
+      lucide.createIcons();
+    </script>
   </body>
 </html>

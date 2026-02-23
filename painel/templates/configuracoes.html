@@ -2,18 +2,17 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurações | Kamy Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
     <style>
-        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
         .config-grid { max-width: 800px; display: grid; gap: 2rem; }
-        .section-card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 2rem; }
+        .section-card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 2rem; transition: background 0.3s; }
         label { display: block; margin-bottom: 0.75rem; color: var(--text-dim); font-size: 0.875rem; }
-        input, select, textarea { width: 100%; background: #000; border: 1px solid var(--border); color: white; padding: 0.75rem 1rem; border-radius: 8px; outline: none; transition: 0.2s; }
+        input, select, textarea { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text-main); padding: 0.75rem 1rem; border-radius: 8px; outline: none; transition: 0.2s; }
         input:focus { border-color: var(--primary); }
         button.save-btn { background: var(--primary); color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
     </style>
@@ -57,7 +56,7 @@
                     <label>Token de Validação</label>
                     <input type="text" name="webhook_token" value="{{ settings.webhook_token }}">
                 </div>
-                <div style="background: rgba(255, 45, 85, 0.05); padding: 1rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-dim)">
+                <div style="background: var(--primary-glow); padding: 1rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-dim)">
                     SUA URL DE WEBHOOK: <code>http://seu-dominio.com/webhook</code>
                 </div>
             </div>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funil Visual | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/global.js"></script>
+    <style>
+        .funnel-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .funnel-row {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        /* Funul Visual SVG */
+        .funnel-visual {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+        }
+
+        .funnel-stage {
+            width: 100%;
+            height: 80px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 800;
+            position: relative;
+            transition: 0.3s;
+            clip-path: polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%);
+        }
+
+        .stage-1 { width: 100%; background: linear-gradient(90deg, #ff2d55, #ff5e7d); }
+        .stage-2 { width: 80%; background: linear-gradient(90deg, #d32044, #ff2d55); }
+        .stage-3 { width: 60%; background: linear-gradient(90deg, #b01a38, #d32044); }
+        .stage-4 { width: 40%; background: linear-gradient(90deg, #8a142c, #b01a38); clip-path: polygon(0% 0%, 100% 0%, 80% 100%, 20% 100%); }
+
+        .funnel-stage:hover { filter: brightness(1.2); transform: scale(1.02); }
+
+        .stage-info {
+            position: absolute;
+            right: -180px;
+            text-align: left;
+            width: 160px;
+        }
+
+        .cv-badge {
+            background: var(--success);
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            margin-top: 4px;
+            display: inline-block;
+        }
+
+        .drop-badge {
+            background: var(--danger);
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            margin-top: 4px;
+            display: inline-block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .chart-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 1.5rem;
+            height: 350px;
+        }
+
+        @media (max-width: 768px) {
+            .funnel-row { flex-direction: column; }
+            .stage-info { position: static; width: auto; text-align: center; margin-top: 0.5rem; }
+            .funnel-stage { height: 60px; clip-path: none; width: 100% !important; border-radius: 12px; margin-bottom: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div>
+                <h1 style="margin:0; font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, var(--text-main), var(--primary)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Funil de Vendas</h1>
+                <p style="color:var(--text-dim);">Análise detalhada do comportamento dos leads no bot.</p>
+            </div>
+            <div style="background: var(--card-bg); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 12px; font-size: 0.85rem;">
+                <span style="color:var(--text-dim)">Taxa de Conversão Global:</span>
+                <strong style="color:var(--success); margin-left:8px; font-size: 1.1rem;">
+                    {{ "%.1f" | format((stats['payment_success'] / stats['start'] * 100) if stats['start'] > 0 else 0) }}%
+                </strong>
+            </div>
+        </header>
+
+        <div class="funnel-container">
+            <div class="funnel-row">
+                <!-- Funnel Visual -->
+                <div class="funnel-visual">
+                    <div style="width: 100%; max-width: 500px; position: relative; padding-right: 180px;">
+                        
+                        <!-- Stage 1: Início -->
+                        <div class="funnel-stage stage-1">
+                            START: {{ stats['start'] }}
+                            <div class="stage-info">
+                                <div style="font-size: 0.75rem; color: var(--text-main); font-weight: 700;">Leads que iniciaram</div>
+                                <div style="font-size: 0.65rem; color: var(--text-dim);">100% do tráfego</div>
+                            </div>
+                        </div>
+
+                        <!-- Stage 2: Ver Planos -->
+                        <div class="funnel-stage stage-2">
+                            PRE-VIEW: {{ stats['view_plans'] }}
+                            <div class="stage-info">
+                                <div class="cv-badge">
+                                    {{ "%.1f" | format((stats['view_plans'] / stats['start'] * 100) if stats['start'] > 0 else 0) }}% de retenção
+                                </div><br>
+                                <div class="drop-badge">
+                                    {{ "%.1f" | format((100 - (stats['view_plans'] / stats['start'] * 100)) if stats['start'] > 0 else 0) }}% drop
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stage 3: Checkout -->
+                        <div class="funnel-stage stage-3">
+                            CHECKOUT: {{ stats['checkout'] }}
+                            <div class="stage-info">
+                                <div class="cv-badge">
+                                    {{ "%.1f" | format((stats['checkout'] / stats['view_plans'] * 100) if stats['view_plans'] > 0 else 0) }}% intenção
+                                </div><br>
+                                <div class="drop-badge">
+                                    {{ "%.1f" | format((100 - (stats['checkout'] / stats['view_plans'] * 100)) if stats['view_plans'] > 0 else 0) }}% abandono
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stage 4: Pago -->
+                        <div class="funnel-stage stage-4">
+                            PAID: {{ stats['payment_success'] }}
+                            <div class="stage-info">
+                                <div class="cv-badge" style="background:#00ff88">
+                                    {{ "%.1f" | format((stats['payment_success'] / stats['checkout'] * 100) if stats['checkout'] > 0 else 0) }}% conversão
+                                </div><br>
+                                <div style="font-size: 0.65rem; color: var(--text-dim); margin-top:4px;">Sucesso de Pagamento</div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- Secondary Stats Card -->
+                <div style="flex: 0 0 320px; display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="card" style="padding: 1.5rem;">
+                        <h3 style="margin:0 0 1rem; font-size: 1rem;"><i data-lucide="trending-up" style="width:16px; color:var(--success)"></i> Ganhos de Eficiência</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-dim); line-height: 1.5;">
+                            Se você aumentar a retenção no Checkout em 5%, seu lucro mensal estimado cresce 
+                            <strong style="color:var(--text-main)">R$ {{ "%.2f" | format(stats['checkout'] * 0.05 * 19.90) }}</strong>.
+                        </p>
+                    </div>
+                    <div class="card" style="padding: 1.5rem; background: var(--primary-glow); border-color: rgba(255,45,85,0.2);">
+                        <h3 style="margin:0 0 0.5rem; font-size: 1rem; color: var(--primary);">Alerta de Gargalo</h3>
+                        {% set view_rate = (stats['view_plans'] / stats['start'] * 100) if stats['start'] > 0 else 100 %}
+                        {% if view_rate < 30 %}
+                            <p style="font-size: 0.8rem; margin:0;">Início -> Planos está muito baixo ({{ "%.1f" | format(view_rate) }}%). Mude sua mensagem de boas-vindas!</p>
+                        {% elif (stats['payment_success'] / stats['checkout'] * 100 if stats['checkout'] > 0 else 100) < 50 %}
+                            <p style="font-size: 0.8rem; margin:0;">Abandono de Checkout alto. Verifique se o gateway está fora do ar ou o PIX falhando.</p>
+                        {% else %}
+                            <p style="font-size: 0.8rem; margin:0;">Fluxo saudável! Considere aumentar o tráfego.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="chart-card">
+                    <h3 style="margin:0 0 1rem; font-size: 1rem;">Distribuição Temporal</h3>
+                    <canvas id="funnelTimeChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3 style="margin:0 0 1rem; font-size: 1rem;">Perda por Etapa</h3>
+                    <canvas id="lossChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        const ctx1 = document.getElementById('funnelTimeChart').getContext('2d');
+        new Chart(ctx1, {
+            type: 'line',
+            data: {
+                labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'],
+                datasets: [{
+                    label: 'Pagtos Confirmados',
+                    data: [12, 19, 3, 5, 2, 3, 9],
+                    borderColor: '#ff2d55',
+                    backgroundColor: 'rgba(255, 45, 85, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        const ctx2 = document.getElementById('lossChart').getContext('2d');
+        new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: ['Convertidos', 'Perda no Início', 'Abandono Checkout'],
+                datasets: [{
+                    data: [
+                        Number("{{ stats['payment_success'] }}"), 
+                        Number("{{ stats['start'] - stats['view_plans'] }}"), 
+                        Number("{{ stats['checkout'] - stats['payment_success'] }}")
+                    ],
+                    backgroundColor: ['#00ff88', '#ff2d55', '#ffab00'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#888', usePointStyle: true, padding: 20 } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

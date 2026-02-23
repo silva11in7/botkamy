@@ -2,15 +2,15 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Produtos | Kamy Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
     <style>
-        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
-        .card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; margin-bottom: 2rem; }
-        input, textarea, select { background: #000; border: 1px solid var(--border); color: white; padding: 0.6rem; border-radius: 8px; width: 100%; margin-top: 5px; }
+        .card { padding: 1.5rem; margin-bottom: 2rem; }
+        input, textarea, select { background: var(--input-bg); border: 1px solid var(--border); color: var(--text-main); padding: 0.6rem; border-radius: 8px; width: 100%; margin-top: 5px; }
         .btn { background: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
     </style>
 </head>
@@ -18,7 +18,7 @@
     {% include 'base_sidebar.html' %}
 
     <main class="main">
-        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3rem">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3rem; flex-wrap:wrap; gap:1rem">
             <div>
                 <h1 style="margin:0">Gestão de Produtos</h1>
                 <p style="color:var(--text-dim)">Controle preços e visibilidade do bot em tempo real.</p>

@@ -2,16 +2,15 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comunicação | Kamy Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
     <style>
-        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
-        .card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 2rem; max-width: 700px; }
-        textarea { width: 100%; background: #000; border: 1px solid var(--border); color: white; padding: 1.5rem; border-radius: 15px; resize: none; min-height: 200px; font-size: 1rem; margin-top: 1rem; }
+        .card { padding: 2rem; max-width: 700px; }
+        textarea { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text-main); padding: 1.5rem; border-radius: 15px; resize: none; min-height: 200px; font-size: 1rem; margin-top: 1rem; }
         .btn-send { background: var(--primary); color: white; border: none; padding: 1rem 2rem; border-radius: 12px; font-weight: 700; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 2rem; display: flex; align-items: center; justify-content: center; gap: 10px; }
         .warning { background: rgba(255, 77, 77, 0.1); color: #ff4d4d; border-radius: 10px; padding: 1rem; font-size: 0.85rem; margin-bottom: 1.5rem; border: 1px solid rgba(255, 77, 77, 0.2); }
     </style>
@@ -37,7 +36,7 @@
             </div>
 
             <form action="/broadcast" method="post">
-                <textarea placeholder="Olá gatão, tem conteúdo novo esperando por você..."></textarea>
+                <textarea name="message" placeholder="Olá gatão, tem conteúdo novo esperando por você..."></textarea>
                 <button type="submit" class="btn-send">
                     <i data-lucide="zap"></i> DISPARAR MENSAGENS AGORA
                 </button>

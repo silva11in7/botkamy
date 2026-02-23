@@ -128,6 +128,12 @@ async def dashboard(request: Request):
         logger.error(traceback.format_exc())
         return HTMLResponse(content=f"<h1>Erro Interno 500</h1><pre>{e}</pre>", status_code=500)
 
+@app.get("/funil", response_class=HTMLResponse)
+async def funnel_page(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    stats = database.get_funnel_stats()
+    return templates.TemplateResponse("funil.html", {"request": request, "stats": stats, "active_page": "funil"})
+
 # Vendas Page
 @app.get("/vendas", response_class=HTMLResponse)
 async def vendas(request: Request):
@@ -263,6 +269,32 @@ async def get_source_data():
     labels = [d['source'] for d in data]
     values = [d['total'] for d in data]
     return JSONResponse({"labels": labels, "values": values})
+
+@app.get("/api/stats/funnel")
+async def api_funnel_stats():
+    # In a real app, this could support date filters. For now, total lifetime.
+    stats = database.get_funnel_stats()
+    return JSONResponse(stats)
+
+@app.get("/api/dashboard/layout")
+async def get_dashboard_layout(request: Request):
+    user = get_current_user(request)
+    if not user: return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    # We use a key like dashboard_layout_username
+    layout = database.get_setting(f"dashboard_layout_{user}", "{}")
+    return JSONResponse({"layout": layout})
+
+@app.post("/api/dashboard/layout")
+async def save_dashboard_layout(request: Request, data: dict = Body(...)):
+    user = get_current_user(request)
+    if not user: return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    layout = data.get("layout")
+    if layout:
+        database.set_setting(f"dashboard_layout_{user}", layout)
+        return JSONResponse({"status": "ok"})
+    return JSONResponse({"error": "Missing layout"}, status_code=400)
 
 # --- V3: Central de Mídia ---
 @app.get("/midia", response_class=HTMLResponse)

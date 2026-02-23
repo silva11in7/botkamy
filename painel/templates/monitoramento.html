@@ -2,33 +2,13 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoramento de Sistemas | Kamy Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
     <style>
-        :root {
-            --primary: #ff2d55;
-            --bg: #050505;
-            --card-bg: #0f0f0f;
-            --border: rgba(255, 255, 255, 0.08);
-            --text-main: #ffffff;
-            --text-dim: #888888;
-            --success: #00ff88;
-            --warning: #ffcc00;
-            --danger: #ff4d4d;
-        }
-
-        body {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
-            color: var(--text-main);
-            display: flex;
-            overflow-x: hidden;
-        }
-
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; min-height: 100vh; }
-
         .monitor-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -79,7 +59,7 @@
             text-transform: uppercase;
         }
 
-        .badge-online { background: rgba(0, 255, 136, 0.1); color: var(--success); }
+        .badge-online { background: rgba(0, 217, 126, 0.1); color: var(--success); }
         .badge-offline { background: rgba(255, 77, 77, 0.1); color: var(--danger); }
 
         .stat-line {
@@ -153,7 +133,7 @@
     {% include 'base_sidebar.html' %}
 
     <main class="main">
-        <header style="display:flex; justify-content: space-between; align-items: center;">
+        <header style="display:flex; justify-content: space-between; align-items: center; flex-wrap:wrap; gap:1rem">
             <div>
                 <h1 style="margin:0; font-size: 2rem; font-weight: 800;">Monitoramento Global</h1>
                 <p style="color:var(--text-dim); margin: 5px 0 0 0;">Status em tempo real das integrações e saúde do bot.</p>
@@ -165,7 +145,6 @@
         </header>
 
         <div class="monitor-grid" id="monitor-grid">
-            <!-- Cards will be populated by JS -->
             <div class="status-card" id="card-bot">
                 <div class="scanner"></div>
                 <div class="card-header">
@@ -240,18 +219,12 @@
             try {
                 const response = await fetch('/api/health_advanced');
                 const data = await response.json();
-
-                // Update Bot
                 updateCard('bot', data.bot);
                 if (data.bot.username) {
                     document.getElementById('val-bot-username').innerText = '@' + data.bot.username;
-                    // Auto-update bridge bot username in next turn if needed
                 }
-
-                // Update APIs
                 updateCard('babylon', data.babylon);
                 updateCard('utmfy', data.utmfy);
-                
             } catch (error) {
                 console.error("Erro ao atualizar saúde:", error);
             }
@@ -275,14 +248,12 @@
 
             if (latencyVal) latencyVal.innerText = info.latency + ' ms';
             if (latencyFill) {
-                // Percentage based on 1000ms max for filling
                 const pct = Math.min((info.latency / 1000) * 100, 100);
                 latencyFill.style.width = pct + '%';
                 latencyFill.style.background = info.latency > 500 ? 'var(--danger)' : (info.latency > 200 ? 'var(--warning)' : 'var(--success)');
             }
         }
 
-        // Run every 5 seconds
         setInterval(updateHealth, 5000);
         updateHealth();
         lucide.createIcons();

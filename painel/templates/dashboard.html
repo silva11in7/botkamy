@@ -5,110 +5,142 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | Kamy Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/global.js"></script>
     <style>
-        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; --success: #00d97e; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
         .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-        .metric-card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; }
+        .metric-card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; transition: background 0.3s, border-color 0.3s; }
         .metric-value { font-size: 1.75rem; font-weight: 700; margin: 0.5rem 0; }
         .metric-label { color: var(--text-dim); font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
-        .chart-container { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; margin-bottom: 2rem; }
+        .chart-container { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; margin-bottom: 2rem; transition: background 0.3s; }
+        .customize-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 0.5rem 1rem; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; transition: 0.2s; }
+        .customize-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .widget-item { transition: 0.3s; }
     </style>
 </head>
 <body>
     {% include 'base_sidebar.html' %}
 
     <main class="main">
-        <header style="margin-bottom:2rem">
-            <h1 style="margin:0">Bem-vindo, Admin 👑</h1>
-            <p style="color:var(--text-dim)">Visão geral da performance do bot e conteúdos.</p>
+        <header style="margin-bottom:2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem">
+            <div>
+                <h1 style="margin:0">Bem-vindo, Admin 👑</h1>
+                <p style="color:var(--text-dim)">Visão geral da performance do bot e conteúdos.</p>
+            </div>
+            <button class="customize-btn" id="customizeBtn" onclick="toggleEditMode()">
+                <i data-lucide="layout-grid"></i> Personalizar
+            </button>
         </header>
 
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label"><i data-lucide="dollar-sign"></i> Faturamento Total</div>
-                <div class="metric-value">R$ {{ "%.2f"|format(metrics.total_revenue) }}</div>
+        <div id="widgets-container">
+            <!-- Widget: Metrics Row -->
+            <div class="widget-item" data-widget-id="metrics">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label"><i data-lucide="dollar-sign"></i> Faturamento Total</div>
+                        <div class="metric-value">R$ {{ "%.2f"|format(metrics.total_revenue) }}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label"><i data-lucide="shopping-bag"></i> Vendas Pagas</div>
+                        <div class="metric-value">{{ metrics.total_sales }}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label"><i data-lucide="users"></i> Novos Leads</div>
+                        <div class="metric-value">{{ metrics.total_users }}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label"><i data-lucide="clock"></i> Pix Pendentes</div>
+                        <div class="metric-value" style="color:var(--warning)">{{ metrics.pending_pix }}</div>
+                    </div>
+                </div>
             </div>
-            <div class="metric-card">
-                <div class="metric-label"><i data-lucide="shopping-bag"></i> Vendas Pagas</div>
-                <div class="metric-value">{{ metrics.total_sales }}</div>
+
+            <!-- Widget: Revenue Chart -->
+            <div class="widget-item" data-widget-id="revenue-chart" style="margin-bottom:1.5rem">
+                <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem; transition: background 0.3s">
+                    <h3 style="margin-top:0">Faturamento (7 dias)</h3>
+                    <canvas id="revenueChart" height="150"></canvas>
+                </div>
             </div>
-            <div class="metric-card">
-                <div class="metric-label"><i data-lucide="users"></i> Novos Leads</div>
-                <div class="metric-value">{{ metrics.total_users }}</div>
+
+            <!-- Widget: Source Chart -->
+            <div class="widget-item" data-widget-id="source-chart" style="margin-bottom:1.5rem">
+                <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem; transition: background 0.3s">
+                    <h3 style="margin-top:0">Vendas por Fonte (UTM)</h3>
+                    <canvas id="sourceChart" height="150"></canvas>
+                </div>
             </div>
-            <div class="metric-card">
-                <div class="metric-label"><i data-lucide="clock"></i> Pix Pendentes</div>
-                <div class="metric-value" style="color:var(--warning)">{{ metrics.pending_pix }}</div>
+
+            <!-- Widget: Mini Funnel -->
+            <div class="widget-item" data-widget-id="mini-funnel" style="margin-bottom:1.5rem">
+                <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem; transition: background 0.3s">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem">
+                        <h3 style="margin-top:0; margin-bottom:0">Funil de Vendas</h3>
+                        <a href="/funil" style="color:var(--primary); text-decoration:none; font-size:0.8rem">Ver detalhes →</a>
+                    </div>
+                    <div class="funnel-bar" style="margin-bottom:1rem">
+                        <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Inícios</span> <span>{{ funnel.start }}</span></div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:100%; background:var(--primary); border-radius:4px"></div></div>
+                    </div>
+                    <div class="funnel-bar" style="margin-bottom:1rem">
+                        <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Viram Planos</span> <span>{{ funnel.view_plans }}</span></div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:{{ (funnel.view_plans / (funnel.start or 1) * 100)|round }}%; background:var(--primary); opacity:0.8; border-radius:4px"></div></div>
+                    </div>
+                    <div class="funnel-bar" style="margin-bottom:1rem">
+                        <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Checkouts</span> <span>{{ funnel.checkout }}</span></div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:{{ (funnel.checkout / (funnel.start or 1) * 100)|round }}%; background:var(--primary); opacity:0.6; border-radius:4px"></div></div>
+                    </div>
+                    <div class="funnel-bar">
+                        <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Vendas</span> <span style="color:var(--success)">{{ funnel.payment_success }}</span></div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:{{ (funnel.payment_success / (funnel.start or 1) * 100)|round }}%; background:var(--success); border-radius:4px"></div></div>
+                    </div>
+                    <div style="margin-top:1.5rem; text-align:center; padding:1rem; background:rgba(0,217,126,0.05); border-radius:15px; border:1px dashed var(--success)">
+                        <div style="font-size:0.7rem; color:var(--text-dim)">Conversão Total</div>
+                        <div style="font-size:1.2rem; font-weight:700; color:var(--success)">{{ (funnel.payment_success / (funnel.start or 1) * 100)|round(1) }}%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Widget: Recent Sales -->
+            <div class="widget-item" data-widget-id="recent-sales">
+                <div style="background:var(--card-bg); border-radius:20px; border:1px solid var(--border); overflow:hidden; transition: background 0.3s">
+                    <div style="padding:1.5rem; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center">
+                        <h3 style="margin:0">Vendas Recentes</h3>
+                        <a href="/vendas" style="color:var(--primary); text-decoration:none; font-size:0.85rem">Ver todas</a>
+                    </div>
+                    <table style="width:100%; border-collapse:collapse">
+                        <thead style="background:rgba(255,255,255,0.02)">
+                            <tr>
+                                <th style="padding:1rem; text-align:left; color:var(--text-dim)">Usuário</th>
+                                <th style="padding:1rem; text-align:left; color:var(--text-dim)">Valor</th>
+                                <th style="padding:1rem; text-align:left; color:var(--text-dim)">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in recent %}
+                            <tr>
+                                <td style="padding:1rem; border-bottom:1px solid var(--border)">@{{ tx.username or 'Cliente' }}</td>
+                                <td style="padding:1rem; border-bottom:1px solid var(--border)">R$ {{ "%.2f"|format(tx.amount) }}</td>
+                                <td style="padding:1rem; border-bottom:1px solid var(--border)">
+                                    <span style="color:{{ '#00d97e' if tx.status == 'confirmed' else '#f5a623' if tx.status == 'pending' else '#ff4d4d' }}">
+                                        {{ tx.status|upper }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <div class="chart-container" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; background:transparent; border:none; padding:0">
-            <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem">
-                <h3 style="margin-top:0">Faturamento (7 dias)</h3>
-                <canvas id="revenueChart" height="150"></canvas>
-            </div>
-            
-            <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem">
-                <h3 style="margin-top:0">Vendas por Fonte (UTM)</h3>
-                <canvas id="sourceChart" height="150"></canvas>
-            </div>
-
-            <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:20px; padding:1.5rem">
-                <h3 style="margin-top:0">Funil de Vendas</h3>
-                <div class="funnel-bar" style="margin-bottom:1rem">
-                    <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Inícios</span> <span>{{ funnel.start }}</span></div>
-                    <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:100%; background:var(--primary); border-radius:4px"></div></div>
-                </div>
-                <div class="funnel-bar" style="margin-bottom:1rem">
-                    <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Viram Planos</span> <span>{{ funnel.view_plans }}</span></div>
-                    <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:{{ (funnel.view_plans / (funnel.start or 1) * 100)|round }}%; background:var(--primary); opacity:0.8; border-radius:4px"></div></div>
-                </div>
-                <div class="funnel-bar" style="margin-bottom:1rem">
-                    <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Checkouts</span> <span>{{ funnel.checkout }}</span></div>
-                    <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:{{ (funnel.checkout / (funnel.start or 1) * 100)|round }}%; background:var(--primary); opacity:0.6; border-radius:4px"></div></div>
-                </div>
-                <div class="funnel-bar">
-                    <div style="font-size:0.7rem; color:var(--text-dim); display:flex; justify-content:space-between"><span>Vendas</span> <span style="color:var(--success)">{{ funnel.payment_success }}</span></div>
-                    <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; margin-top:4px"><div style="height:100%; width:{{ (funnel.payment_success / (funnel.start or 1) * 100)|round }}%; background:var(--success); border-radius:4px"></div></div>
-                </div>
-                <div style="margin-top:1.5rem; text-align:center; padding:1rem; background:rgba(0,217,126,0.05); border-radius:15px; border:1px dashed var(--success)">
-                    <div style="font-size:0.7rem; color:var(--text-dim)">Conversão Total</div>
-                    <div style="font-size:1.2rem; font-weight:700; color:var(--success)">{{ (funnel.payment_success / (funnel.start or 1) * 100)|round(1) }}%</div>
-                </div>
-            </div>
-        </div>
-
-        <div style="background:var(--card-bg); border-radius:20px; border:1px solid var(--border); overflow:hidden">
-            <div style="padding:1.5rem; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center">
-                <h3 style="margin:0">Vendas Recentes</h3>
-                <a href="/vendas" style="color:var(--primary); text-decoration:none; font-size:0.85rem">Ver todas</a>
-            </div>
-            <table style="width:100%; border-collapse:collapse">
-                <thead style="background:rgba(255,255,255,0.02)">
-                    <tr>
-                        <th style="padding:1rem; text-align:left; color:var(--text-dim)">Usuário</th>
-                        <th style="padding:1rem; text-align:left; color:var(--text-dim)">Valor</th>
-                        <th style="padding:1rem; text-align:left; color:var(--text-dim)">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for tx in recent %}
-                    <tr>
-                        <td style="padding:1rem; border-bottom:1px solid var(--border)">@{{ tx.username or 'Cliente' }}</td>
-                        <td style="padding:1rem; border-bottom:1px solid var(--border)">R$ {{ "%.2f"|format(tx.amount) }}</td>
-                        <td style="padding:1rem; border-bottom:1px solid var(--border)">
-                            <span style="color:{{ '#00d97e' if tx.status == 'confirmed' else '#f5a623' if tx.status == 'pending' else '#ff4d4d' }}">
-                                {{ tx.status|upper }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <!-- Reset layout button (hidden by default, visible in customize mode) -->
+        <div style="text-align:center; margin-top:2rem">
+            <button onclick="resetDashboardLayout()" style="background:none; border:1px solid var(--border); color:var(--text-dim); padding:0.5rem 1rem; border-radius:8px; cursor:pointer; font-size:0.8rem">
+                <i data-lucide="rotate-ccw" style="width:14px; vertical-align:middle"></i> Resetar Layout Padrão
+            </button>
         </div>
     </main>
 
@@ -116,6 +148,9 @@
         lucide.createIcons();
         
         async function loadCharts() {
+            const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+            
             // Load Revenue Chart
             const resRev = await fetch('/api/stats/revenue');
             const dataRev = await resRev.json();
@@ -137,7 +172,7 @@
                 options: {
                     responsive: true,
                     scales: {
-                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { beginAtZero: true, grid: { color: gridColor } },
                         x: { grid: { display: false } }
                     },
                     plugins: { legend: { display: false } }
@@ -168,7 +203,7 @@
                     plugins: { 
                         legend: { 
                             position: 'bottom',
-                            labels: { color: '#888', font: { size: 10 }, usePointStyle: true }
+                            labels: { color: isDark ? '#888' : '#555', font: { size: 10 }, usePointStyle: true }
                         } 
                     }
                 }

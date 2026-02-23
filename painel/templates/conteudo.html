@@ -2,34 +2,36 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor de Conteúdo Elite | Kamy Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
     <style>
-        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255, 255, 255, 0.08); --text-main: #ffffff; --text-dim: #888888; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); display: flex; }
-        .main { margin-left: 260px; flex: 1; padding: 2rem 3rem; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; }
-        .card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--border); padding: 1.5rem; transition: 0.3s; }
         .card:hover { border-color: rgba(255, 45, 85, 0.3); }
         label { display: block; color: var(--text-dim); font-size: 0.8rem; margin-bottom: 0.5rem; }
-        textarea, input { width: 100%; background: #000; border: 1px solid var(--border); color: white; padding: 0.8rem; border-radius: 10px; margin-bottom: 1rem; font-family: inherit; }
+        textarea, input { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text-main); padding: 0.8rem; border-radius: 10px; margin-bottom: 1rem; font-family: inherit; }
         .btn-save { background: var(--primary); color: white; border: none; padding: 0.7rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
         .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-delete { background: rgba(255, 255, 255, 0.05); color: #ff4d4d; border: 1px solid rgba(255, 77, 77, 0.2); padding: 0.7rem; border-radius: 8px; cursor: pointer; }
-        .product-link-box { background: #000; border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; max-height: 150px; overflow-y: auto; }
+        .product-link-box { background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; max-height: 150px; overflow-y: auto; }
         .product-option { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem; }
         .product-option input { width: auto; margin: 0; }
         .badge { background: rgba(255, 45, 85, 0.1); color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
         .add-card { border: 2px dashed var(--border); background: transparent; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; min-height: 300px; }
-        .add-card:hover { border-color: var(--primary); background: rgba(255, 45, 85, 0.02); }
+        .add-card:hover { border-color: var(--primary); background: var(--primary-glow); }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr !important; }
+        }
     </style>
 </head>
 <body>
     {% include 'base_sidebar.html' %}
 
     <main class="main">
-        <header style="margin-bottom:3rem; display: flex; justify-content: space-between; align-items: center;">
+        <header style="margin-bottom:3rem; display: flex; justify-content: space-between; align-items: center; flex-wrap:wrap; gap:1rem">
             <div>
                 <h1 style="margin:0">Editor de Conteúdo Elite</h1>
                 <p style="color:var(--text-dim)">Crie textos persuasivos e ligue-os a produtos específicos.</p>
@@ -73,7 +75,7 @@
                         {% for prod in products %}
                         <div class="product-option">
                             <input type="checkbox" name="products" value="{{ prod.id }}" id="p-{{ item.key }}-{{ prod.id }}" {{ 'checked' if prod.id in item.products }}>
-                            <label for="p-{{ item.key }}-{{ prod.id }}" style="margin:0; color:white; cursor:pointer">{{ prod.name }}</label>
+                            <label for="p-{{ item.key }}-{{ prod.id }}" style="margin:0; color:var(--text-main); cursor:pointer">{{ prod.name }}</label>
                         </div>
                         {% endfor %}
                     </div>

@@ -1,13 +1,19 @@
-<style>
-    .sidebar { width: 260px; background: #000; border-right: 1px solid var(--border); padding: 2rem 1.5rem; display: flex; flex-direction: column; height: 100vh; position: fixed; left: 0; top: 0; z-index: 100; }
-    .logo { font-size: 1.5rem; font-weight: 800; background: linear-gradient(to right, var(--primary), #ff7171); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; }
-    .nav-item { padding: 0.75rem 1rem; border-radius: 12px; color: var(--text-dim); text-decoration: none; display: flex; align-items: center; gap: 12px; transition: 0.2s; margin-bottom: 0.4rem; font-size: 0.9rem; }
-    .nav-item:hover, .nav-item.active { background: var(--card-bg); color: var(--text-main); }
-    .nav-item.active { background: rgba(255, 45, 85, 0.1); color: var(--primary); }
-</style>
+<!-- Hamburger Button (Mobile Only) -->
+<button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+    <i data-lucide="menu"></i>
+</button>
+
+<!-- Overlay (Mobile) -->
+<div class="sidebar-overlay" onclick="closeSidebar()"></div>
+
 <aside class="sidebar">
-    <div class="logo"><i data-lucide="zap"></i> Kamy Control</div>
-    <nav>
+    <div class="sidebar-header">
+        <div class="logo"><i data-lucide="zap"></i> Kamy Control</div>
+        <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Alternar Tema">
+            <i data-lucide="sun"></i>
+        </button>
+    </div>
+    <nav class="nav-items">
         <a href="/dashboard" class="nav-item {{ 'active' if active_page == 'dashboard' }}">
             <i data-lucide="layout-dashboard"></i> Dashboard
         </a>
@@ -25,6 +31,9 @@
         </a>
         <a href="/automacao" class="nav-item {{ 'active' if active_page == 'automacao' }}">
             <i data-lucide="cpu"></i> Automação
+        </a>
+        <a href="/funil" class="nav-item {{ 'active' if active_page == 'funil' }}">
+            <i data-lucide="filter"></i> Funil Visual
         </a>
         <a href="/usuarios" class="nav-item {{ 'active' if active_page == 'usuarios' }}">
             <i data-lucide="users"></i> Usuários
@@ -47,8 +56,8 @@
         <a href="/configuracoes" class="nav-item {{ 'active' if active_page == 'settings' }}">
             <i data-lucide="settings"></i> Configurações
         </a>
-        <div style="flex:1"></div>
-        <a href="/logout" class="nav-item" style="color:#ff4d4d">
+        <div class="nav-spacer"></div>
+        <a href="/logout" class="nav-item logout-item">
             <i data-lucide="log-out"></i> Sair
         </a>
     </nav>
