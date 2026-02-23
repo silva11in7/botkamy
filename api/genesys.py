@@ -71,8 +71,15 @@ async def create_pix_payment(
         }
     }
 
-    if callback_url and callback_url.startswith("http"):
+    if callback_url and isinstance(callback_url, str) and callback_url.startswith("http"):
         payload["webhook_url"] = callback_url
+
+    # Remove optional fields that Genesys validates strictly even if empty/null
+    for key in ["webhook_url", "ip"]:
+        if key in payload and not payload[key]:
+            del payload[key]
+
+    logger.info(f"Genesys payload keys: {list(payload.keys())}")
 
     async with httpx.AsyncClient() as client:
         try:
