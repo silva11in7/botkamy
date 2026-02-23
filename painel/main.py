@@ -591,11 +591,12 @@ async def receive_webhook(request: Request, data: dict = Body(...)):
     
     return {"status": "success", "processed": True}
 
-# --- Oasyfy Webhook Endpoint ---
+# --- Oasyfy / AmploPay Webhook Endpoints ---
 @app.post("/webhook/oasyfy")
+@app.post("/webhook/amplopay")
 async def receive_oasyfy_webhook(request: Request, data: dict = Body(...)):
-    """Webhook handler for Oasyfy payment callbacks."""
-    logger.info(f"Received Oasyfy webhook: {data}")
+    """Webhook handler for Oasyfy/AmploPay payment callbacks (same payload format)."""
+    logger.info(f"Received Oasyfy/AmploPay webhook: {data}")
 
     # Oasyfy sends status and metadata at top level
     identifier = None

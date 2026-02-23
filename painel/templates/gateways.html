@@ -140,6 +140,7 @@
                     <select name="provider" id="providerSelect" onchange="updateCredFields()">
                         <option value="babylon">Babylon</option>
                         <option value="oasyfy">Oasyfy</option>
+                        <option value="amplopay">AmploPay</option>
                     </select>
                 </div>
                 <div id="credFields">
@@ -179,10 +180,11 @@
                     <div class="form-group"><label>API Key</label><input type="text" name="cred_api_key" placeholder="sk_live_..." required></div>
                     <div class="form-group"><label>Company ID</label><input type="text" name="cred_company_id" placeholder="UUID"></div>
                 `;
-            } else if (provider === 'oasyfy') {
+            } else if (provider === 'oasyfy' || provider === 'amplopay') {
+                const label = provider === 'oasyfy' ? 'Oasyfy' : 'AmploPay';
                 container.innerHTML = `
-                    <div class="form-group"><label>Public Key</label><input type="text" name="cred_public_key" required></div>
-                    <div class="form-group"><label>Secret Key</label><input type="text" name="cred_secret_key" required></div>
+                    <div class="form-group"><label>${label} Public Key</label><input type="text" name="cred_public_key" required></div>
+                    <div class="form-group"><label>${label} Secret Key</label><input type="text" name="cred_secret_key" required></div>
                 `;
             }
         }
