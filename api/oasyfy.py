@@ -59,14 +59,6 @@ async def create_pix_payment(
             "phone": phone_clean,
             "document": doc_clean
         },
-        "products": [
-            {
-                "id": identifier,
-                "name": product_title,
-                "quantity": 1,
-                "price": amount
-            }
-        ],
         "metadata": metadata or {}
     }
 
