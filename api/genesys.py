@@ -71,7 +71,7 @@ async def create_pix_payment(
         }
     }
 
-    if callback_url:
+    if callback_url and callback_url.startswith("http"):
         payload["webhook_url"] = callback_url
 
     async with httpx.AsyncClient() as client:
