@@ -29,15 +29,13 @@ async def create_pix_payment(
         logger.error("Genesys credentials not provided.")
         return None
 
-    api_key = credentials.get("api_key")
     api_secret = credentials.get("api_secret")
-    if not api_key or not api_secret:
-        logger.error("Genesys api_key or api_secret missing from credentials.")
+    if not api_secret:
+        logger.error("Genesys api_secret missing from credentials.")
         return None
 
     headers = {
-        "x-api-key": api_key,
-        "x-api-secret": api_secret,
+        "api-secret": api_secret,
         "Content-Type": "application/json"
     }
 
