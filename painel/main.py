@@ -442,6 +442,59 @@ async def save_settings(request: Request, webhook_token: str = Form(...), mainte
     database.set_setting("recovery_message", recovery_message)
     return RedirectResponse(url="/configuracoes", status_code=status.HTTP_303_SEE_OTHER)
 
+# --- Gateway Management Routes ---
+@app.get("/gateways", response_class=HTMLResponse)
+async def gateways_page(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    gateways = database.get_all_gateways()
+    return templates.TemplateResponse("gateways.html", {
+        "request": request, "active_page": "gateways", "gateways": gateways
+    })
+
+@app.post("/gateways/add")
+async def add_gateway(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    form = await request.form()
+    gw_id = form.get("gw_id", "").strip().lower().replace(" ", "_")
+    name = form.get("name", "").strip()
+    provider = form.get("provider", "babylon")
+
+    # Build credentials dict from form fields prefixed with cred_
+    credentials = {}
+    for key, val in form.items():
+        if key.startswith("cred_") and val:
+            credentials[key.replace("cred_", "")] = val
+
+    if gw_id and name:
+        database.add_gateway(gw_id, name, provider, credentials)
+    return RedirectResponse(url="/gateways", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/gateways/{gw_id}/update")
+async def update_gateway(request: Request, gw_id: str):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    form = await request.form()
+    name = form.get("name", "").strip()
+
+    credentials = {}
+    for key, val in form.items():
+        if key.startswith("cred_") and val:
+            credentials[key.replace("cred_", "")] = val
+
+    database.update_gateway(gw_id, name=name if name else None, credentials=credentials if credentials else None)
+    return RedirectResponse(url="/gateways", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/gateways/{gw_id}/activate")
+async def activate_gateway(request: Request, gw_id: str):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    database.activate_gateway(gw_id)
+    return RedirectResponse(url="/gateways", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/gateways/{gw_id}/delete")
+async def delete_gateway_route(request: Request, gw_id: str):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    database.delete_gateway(gw_id)
+    return RedirectResponse(url="/gateways", status_code=status.HTTP_303_SEE_OTHER)
+
 # --- Webhook Endpoint ---
 @app.post("/webhook")
 async def receive_webhook(request: Request, data: dict = Body(...)):
@@ -536,6 +589,81 @@ async def receive_webhook(request: Request, data: dict = Body(...)):
         except Exception as e:
             logger.error(f"Error sending Purchase event to UTMfy: {e}")
     
+    return {"status": "success", "processed": True}
+
+# --- Oasyfy Webhook Endpoint ---
+@app.post("/webhook/oasyfy")
+async def receive_oasyfy_webhook(request: Request, data: dict = Body(...)):
+    """Webhook handler for Oasyfy payment callbacks."""
+    logger.info(f"Received Oasyfy webhook: {data}")
+
+    # Oasyfy sends status and metadata at top level
+    identifier = None
+    metadata = data.get("metadata") or {}
+    if isinstance(metadata, dict):
+        identifier = metadata.get("identifier")
+
+    if not identifier:
+        identifier = data.get("transactionId") or data.get("identifier")
+
+    if not identifier:
+        logger.warning("Oasyfy webhook without identifier.")
+        return {"status": "success"}
+
+    oasyfy_status = data.get("status", "").upper()
+
+    local_status = 'pending'
+    if oasyfy_status in ['OK', 'PAID', 'APPROVED']:
+        local_status = 'confirmed'
+        user_id = database.get_transaction_user(identifier)
+        if user_id:
+            database.track_event(user_id, 'payment_success')
+    elif oasyfy_status in ['FAILED', 'REJECTED', 'CANCELED', 'EXPIRED']:
+        local_status = 'failed'
+    elif oasyfy_status == 'REFUNDED':
+        local_status = 'refunded'
+
+    logger.info(f"Oasyfy: Updating transaction {identifier} to {local_status}")
+    database.update_transaction_status(identifier=identifier, status=local_status, oasyfy_id=data.get("transactionId"))
+
+    # UTMfy + TikTok tracking on confirmed
+    if local_status == 'confirmed':
+        try:
+            tx = database.get_transaction(identifier)
+            if tx:
+                user_id = tx.get("user_id")
+                db_user = database.get_user(user_id) if user_id else None
+
+                if db_user:
+                    tracking_data = tx.get("metadata", {})
+                    user_info = {
+                        "id": user_id,
+                        "full_name": db_user.get("full_name"),
+                        "created_at": db_user.get("created_at")
+                    }
+                    product_info = {
+                        "id": tx.get("product_id"),
+                        "name": tx.get("product_id", "Acesso VIP"),
+                        "price": tx.get("amount")
+                    }
+                    approved_now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
+                    asyncio.create_task(utmfy.send_order(
+                        order_id=identifier, status="paid",
+                        user_data=user_info, product_data=product_info,
+                        tracking_data=tracking_data, transaction_data=tx,
+                        approved_date=approved_now
+                    ))
+
+                    tiktok_user_info = {"full_name": db_user.get("full_name"), "tracking_data": tracking_data}
+                    tiktok_props = {
+                        "contents": [{"content_id": tx.get("product_id"), "content_name": product_info['name']}],
+                        "value": tx.get("amount"), "currency": "BRL"
+                    }
+                    asyncio.create_task(tiktok.send_tiktok_event("CompletePayment", user_id, tiktok_user_info, tiktok_props, event_id=identifier))
+        except Exception as e:
+            logger.error(f"Error in Oasyfy webhook tracking: {e}")
+
     return {"status": "success", "processed": True}
 
 if __name__ == "__main__":

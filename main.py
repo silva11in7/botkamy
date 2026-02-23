@@ -7,7 +7,7 @@ import random
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
-from api import babylon, utmfy, tiktok
+from api import gateway, utmfy, tiktok
 from datetime import datetime, timezone
 import secrets
 import string
@@ -495,7 +495,7 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
     }
     asyncio.create_task(tiktok.send_tiktok_event("InitiateCheckout", user_id, tiktok_user_info, tiktok_props, event_id=identifier))
 
-    pix_data = await babylon.create_pix_payment(
+    pix_data = await gateway.create_payment(
         identifier=identifier,
         amount=product['price'],
         client_name=user.full_name or "Cliente Telegram",
@@ -503,7 +503,7 @@ async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, pr
         client_phone="(11) 99999-9999", # Placeholder
         client_document="12345678909", # Placeholder
         product_title=product['name'],
-        metadata=tracking_data # Pass tracking metadata to Babylon for webhook usage
+        metadata=tracking_data # Pass tracking metadata for webhook usage
     )
 
     if pix_data:

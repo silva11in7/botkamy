@@ -408,3 +408,81 @@ def get_user_transactions(user_id: int):
     except Exception as e:
         logger.error(f"Error fetching user transactions: {e}")
         return []
+
+# --- Gateway Management ---
+def get_all_gateways():
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        response = supabase.table("gateways").select("*").order("created_at").execute()
+        return response.data or []
+    except Exception as e:
+        logger.error(f"Error fetching gateways: {e}")
+        return []
+
+def get_active_gateway():
+    supabase = get_supabase()
+    if not supabase: return None
+    try:
+        response = supabase.table("gateways").select("*").eq("is_active", True).limit(1).execute()
+        if response and response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching active gateway: {e}")
+        return None
+
+def add_gateway(gw_id: str, name: str, provider: str, credentials: dict):
+    supabase = get_supabase()
+    if not supabase: return False
+    try:
+        supabase.table("gateways").insert({
+            "id": gw_id,
+            "name": name,
+            "provider": provider,
+            "is_active": False,
+            "credentials": credentials
+        }).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error adding gateway: {e}")
+        return False
+
+def update_gateway(gw_id: str, name: str = None, credentials: dict = None):
+    supabase = get_supabase()
+    if not supabase: return False
+    try:
+        update_data = {}
+        if name is not None:
+            update_data["name"] = name
+        if credentials is not None:
+            update_data["credentials"] = credentials
+        if update_data:
+            supabase.table("gateways").update(update_data).eq("id", gw_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating gateway: {e}")
+        return False
+
+def activate_gateway(gw_id: str):
+    supabase = get_supabase()
+    if not supabase: return False
+    try:
+        # Deactivate all
+        supabase.table("gateways").update({"is_active": False}).neq("id", "___none___").execute()
+        # Activate the selected one
+        supabase.table("gateways").update({"is_active": True}).eq("id", gw_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error activating gateway: {e}")
+        return False
+
+def delete_gateway(gw_id: str):
+    supabase = get_supabase()
+    if not supabase: return False
+    try:
+        supabase.table("gateways").delete().eq("id", gw_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting gateway: {e}")
+        return False

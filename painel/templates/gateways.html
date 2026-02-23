@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gateways | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { --primary: #ff2d55; --bg: #050505; --card-bg: #0f0f0f; --border: rgba(255,255,255,0.08); --text-main: #fff; --text-dim: #888; --success: #00e676; --danger: #ff4d4d; --warning: #ffab00; }
+        body { margin:0; font-family:'Inter',sans-serif; background:var(--bg); color:var(--text-main); display:flex; }
+        .main { margin-left:260px; flex:1; padding:2rem 3rem; }
+        h1 { margin:0 0 0.25rem; }
+        .subtitle { color:var(--text-dim); margin-bottom:2rem; }
+
+        /* Gateway Cards Grid */
+        .gw-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); gap:1.5rem; margin-bottom:2rem; }
+        .gw-card { background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:1.75rem; position:relative; transition:0.3s; }
+        .gw-card:hover { border-color:rgba(255,45,85,0.3); transform:translateY(-2px); }
+        .gw-card.active { border-color:var(--success); box-shadow:0 0 20px rgba(0,230,118,0.08); }
+
+        /* Status LED */
+        .status-led { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:8px; }
+        .status-led.on { background:var(--success); box-shadow:0 0 8px var(--success); animation:pulse-led 2s infinite; }
+        .status-led.off { background:#444; }
+        @keyframes pulse-led { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+        /* Card Header */
+        .gw-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; }
+        .gw-name { font-size:1.15rem; font-weight:700; display:flex; align-items:center; gap:8px; }
+        .gw-provider { background:rgba(255,255,255,0.06); padding:4px 10px; border-radius:6px; font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; }
+        .gw-status { font-size:0.8rem; display:flex; align-items:center; }
+        .gw-status.active { color:var(--success); }
+        .gw-status.inactive { color:var(--text-dim); }
+
+        /* Credentials Preview */
+        .gw-creds { background:#000; border:1px solid var(--border); border-radius:10px; padding:1rem; margin-bottom:1.25rem; font-size:0.8rem; }
+        .cred-row { display:flex; justify-content:space-between; align-items:center; padding:0.3rem 0; }
+        .cred-key { color:var(--text-dim); }
+        .cred-val { color:var(--primary); font-family:monospace; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+        /* Action Buttons */
+        .gw-actions { display:flex; gap:0.5rem; }
+        .btn { padding:0.6rem 1.2rem; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.8rem; transition:0.2s; display:inline-flex; align-items:center; gap:6px; }
+        .btn-activate { background:rgba(0,230,118,0.1); color:var(--success); border:1px solid rgba(0,230,118,0.2); }
+        .btn-activate:hover { background:rgba(0,230,118,0.2); }
+        .btn-edit { background:rgba(255,255,255,0.05); color:var(--text-main); border:1px solid var(--border); }
+        .btn-edit:hover { background:rgba(255,255,255,0.1); }
+        .btn-danger { background:rgba(255,77,77,0.1); color:var(--danger); border:1px solid rgba(255,77,77,0.2); }
+        .btn-danger:hover { background:rgba(255,77,77,0.2); }
+        .btn-primary { background:var(--primary); color:white; }
+        .btn-primary:hover { opacity:0.9; }
+
+        /* Add Gateway Form */
+        .add-section { background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:2rem; max-width:600px; }
+        .add-section h2 { margin:0 0 1.5rem; font-size:1.1rem; display:flex; align-items:center; gap:8px; }
+        .form-group { margin-bottom:1.25rem; }
+        .form-group label { display:block; margin-bottom:0.5rem; color:var(--text-dim); font-size:0.85rem; }
+        .form-group input, .form-group select { width:100%; background:#000; border:1px solid var(--border); color:white; padding:0.75rem 1rem; border-radius:8px; outline:none; transition:0.2s; box-sizing:border-box; font-size:0.9rem; }
+        .form-group input:focus, .form-group select:focus { border-color:var(--primary); }
+        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+
+        /* Edit Modal */
+        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; justify-content:center; align-items:center; }
+        .modal-overlay.show { display:flex; }
+        .modal { background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:2rem; width:500px; max-width:90vw; }
+        .modal h2 { margin:0 0 1.5rem; font-size:1.1rem; }
+        .modal-actions { display:flex; gap:0.75rem; justify-content:flex-end; margin-top:1.5rem; }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header>
+            <h1><i data-lucide="credit-card" style="width:28px;vertical-align:middle;color:var(--primary)"></i> Gateways de Pagamento</h1>
+            <p class="subtitle">Gerencie seus gateways. Ative ou troque em tempo real — sem downtime.</p>
+        </header>
+
+        <!-- Gateway Cards -->
+        <div class="gw-grid">
+            {% for gw in gateways %}
+            <div class="gw-card {{ 'active' if gw.is_active }}">
+                <div class="gw-header">
+                    <div>
+                        <div class="gw-name">
+                            <span class="gw-provider">{{ gw.provider }}</span>
+                            {{ gw.name }}
+                        </div>
+                    </div>
+                    <div class="gw-status {{ 'active' if gw.is_active else 'inactive' }}">
+                        <span class="status-led {{ 'on' if gw.is_active else 'off' }}"></span>
+                        {{ 'ATIVO' if gw.is_active else 'INATIVO' }}
+                    </div>
+                </div>
+
+                <div class="gw-creds">
+                    {% for key, val in gw.credentials.items() %}
+                    <div class="cred-row">
+                        <span class="cred-key">{{ key }}</span>
+                        <span class="cred-val" title="{{ val }}">{{ val[:8] }}•••{{ val[-4:] if val|length > 12 else '' }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="gw-actions">
+                    {% if not gw.is_active %}
+                    <form action="/gateways/{{ gw.id }}/activate" method="post" style="display:inline">
+                        <button type="submit" class="btn btn-activate"><i data-lucide="power" style="width:14px"></i> Ativar</button>
+                    </form>
+                    {% else %}
+                    <span class="btn" style="background:rgba(0,230,118,0.05);color:var(--success);cursor:default;border:1px solid rgba(0,230,118,0.1)"><i data-lucide="check-circle" style="width:14px"></i> Em Uso</span>
+                    {% endif %}
+                    <button class="btn btn-edit" onclick="openEditModal('{{ gw.id }}', '{{ gw.name }}', {{ gw.credentials | tojson | e }})"><i data-lucide="edit-3" style="width:14px"></i> Editar</button>
+                    {% if not gw.is_active %}
+                    <form action="/gateways/{{ gw.id }}/delete" method="post" style="display:inline" onsubmit="return confirm('Tem certeza que deseja excluir {{ gw.name }}?')">
+                        <button type="submit" class="btn btn-danger"><i data-lucide="trash-2" style="width:14px"></i></button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Add New Gateway -->
+        <div class="add-section">
+            <h2><i data-lucide="plus-circle" style="width:20px;color:var(--primary)"></i> Adicionar Novo Gateway</h2>
+            <form action="/gateways/add" method="post">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>ID Único (slug)</label>
+                        <input type="text" name="gw_id" placeholder="ex: meu_gateway" required pattern="[a-z0-9_]+" title="Apenas letras minúsculas, números e _">
+                    </div>
+                    <div class="form-group">
+                        <label>Nome de Exibição</label>
+                        <input type="text" name="name" placeholder="ex: Meu Gateway" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Provider</label>
+                    <select name="provider" id="providerSelect" onchange="updateCredFields()">
+                        <option value="babylon">Babylon</option>
+                        <option value="oasyfy">Oasyfy</option>
+                    </select>
+                </div>
+                <div id="credFields">
+                    <!-- Dynamic fields based on provider -->
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:0.5rem"><i data-lucide="plus" style="width:14px"></i> Adicionar Gateway</button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Edit Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal">
+            <h2><i data-lucide="edit-3" style="width:18px;vertical-align:middle;color:var(--primary)"></i> Editar Gateway</h2>
+            <form id="editForm" method="post">
+                <div class="form-group">
+                    <label>Nome de Exibição</label>
+                    <input type="text" name="name" id="editName" required>
+                </div>
+                <div id="editCredFields"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-edit" onclick="closeEditModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function updateCredFields() {
+            const provider = document.getElementById('providerSelect').value;
+            const container = document.getElementById('credFields');
+            if (provider === 'babylon') {
+                container.innerHTML = `
+                    <div class="form-group"><label>API Key</label><input type="text" name="cred_api_key" placeholder="sk_live_..." required></div>
+                    <div class="form-group"><label>Company ID</label><input type="text" name="cred_company_id" placeholder="UUID"></div>
+                `;
+            } else if (provider === 'oasyfy') {
+                container.innerHTML = `
+                    <div class="form-group"><label>Public Key</label><input type="text" name="cred_public_key" required></div>
+                    <div class="form-group"><label>Secret Key</label><input type="text" name="cred_secret_key" required></div>
+                `;
+            }
+        }
+        updateCredFields();
+
+        function openEditModal(id, name, creds) {
+            document.getElementById('editForm').action = `/gateways/${id}/update`;
+            document.getElementById('editName').value = name;
+            const container = document.getElementById('editCredFields');
+            let html = '';
+            for (const [key, val] of Object.entries(creds)) {
+                html += `<div class="form-group"><label>${key}</label><input type="text" name="cred_${key}" value="${val}"></div>`;
+            }
+            container.innerHTML = html;
+            document.getElementById('editModal').classList.add('show');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('show');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) closeEditModal();
+        });
+    </script>
+</body>
+</html>
