@@ -110,7 +110,7 @@
                     {% else %}
                     <span class="btn" style="background:rgba(0,230,118,0.05);color:var(--success);cursor:default;border:1px solid rgba(0,230,118,0.1)"><i data-lucide="check-circle" style="width:14px"></i> Em Uso</span>
                     {% endif %}
-                    <button class="btn btn-edit" onclick="openEditModal('{{ gw.id }}', '{{ gw.name }}', {{ gw.credentials | tojson | e }})"><i data-lucide="edit-3" style="width:14px"></i> Editar</button>
+                    <button class="btn btn-edit" data-id="{{ gw.id }}" data-name="{{ gw.name }}" data-creds='{{ gw.credentials | tojson }}' onclick="openEditModal(this)"><i data-lucide="edit-3" style="width:14px"></i> Editar</button>
                     {% if not gw.is_active %}
                     <form action="/gateways/{{ gw.id }}/delete" method="post" style="display:inline" onsubmit="return confirm('Tem certeza que deseja excluir {{ gw.name }}?')">
                         <button type="submit" class="btn btn-danger"><i data-lucide="trash-2" style="width:14px"></i></button>
@@ -188,7 +188,10 @@
         }
         updateCredFields();
 
-        function openEditModal(id, name, creds) {
+        function openEditModal(btn) {
+            const id = btn.getAttribute('data-id');
+            const name = btn.getAttribute('data-name');
+            const creds = JSON.parse(btn.getAttribute('data-creds'));
             document.getElementById('editForm').action = `/gateways/${id}/update`;
             document.getElementById('editName').value = name;
             const container = document.getElementById('editCredFields');
@@ -198,6 +201,7 @@
             }
             container.innerHTML = html;
             document.getElementById('editModal').classList.add('show');
+            lucide.createIcons();
         }
 
         function closeEditModal() {
