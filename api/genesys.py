@@ -48,10 +48,19 @@ async def create_pix_payment(
     doc_clean = "".join(filter(str.isdigit, client_document))
     doc_type = "CPF" if len(doc_clean) <= 11 else "CNPJ"
 
+    # Build webhook URL from credentials or use painel URL
+    webhook_url = credentials.get("webhook_url", "")
+    if not webhook_url:
+        import os
+        base_url = os.getenv("PAINEL_URL", "https://kamycontrol.onrender.com")
+        webhook_url = f"{base_url}/webhook/genesys"
+
     payload = {
         "external_id": identifier,
         "total_amount": amount,
         "payment_method": "PIX",
+        "webhook_url": webhook_url,
+        "ip": "127.0.0.1",
         "items": [
             {
                 "id": identifier,
@@ -73,13 +82,6 @@ async def create_pix_payment(
 
     if callback_url and isinstance(callback_url, str) and callback_url.startswith("http"):
         payload["webhook_url"] = callback_url
-
-    # Remove optional fields that Genesys validates strictly even if empty/null
-    for key in ["webhook_url", "ip"]:
-        if key in payload and not payload[key]:
-            del payload[key]
-
-    logger.info(f"Genesys payload keys: {list(payload.keys())}")
 
     async with httpx.AsyncClient() as client:
         try:
