@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Optional, Dict, Any
 import database
-from api import babylon, oasyfy, amplopay
+from api import babylon, oasyfy, amplopay, genesys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -71,6 +71,20 @@ async def create_payment(
 
     elif provider == "amplopay":
         return await amplopay.create_pix_payment(
+            identifier=identifier,
+            amount=amount,
+            client_name=client_name,
+            client_email=client_email,
+            client_phone=client_phone,
+            client_document=client_document,
+            product_title=product_title,
+            callback_url=callback_url,
+            metadata=metadata,
+            credentials=credentials
+        )
+
+    elif provider == "genesys":
+        return await genesys.create_pix_payment(
             identifier=identifier,
             amount=amount,
             client_name=client_name,

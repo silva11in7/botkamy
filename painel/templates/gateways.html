@@ -141,6 +141,7 @@
                         <option value="babylon">Babylon</option>
                         <option value="oasyfy">Oasyfy</option>
                         <option value="amplopay">AmploPay</option>
+                        <option value="genesys">Genesys</option>
                     </select>
                 </div>
                 <div id="credFields">
@@ -185,6 +186,10 @@
                 container.innerHTML = `
                     <div class="form-group"><label>${label} Public Key</label><input type="text" name="cred_public_key" required></div>
                     <div class="form-group"><label>${label} Secret Key</label><input type="text" name="cred_secret_key" required></div>
+                `;
+            } else if (provider === 'genesys') {
+                container.innerHTML = `
+                    <div class="form-group"><label>API Key</label><input type="text" name="cred_api_key" placeholder="Bearer token" required></div>
                 `;
             }
         }

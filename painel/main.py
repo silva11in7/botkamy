@@ -667,6 +667,76 @@ async def receive_oasyfy_webhook(request: Request, data: dict = Body(...)):
 
     return {"status": "success", "processed": True}
 
+# --- Genesys Webhook Endpoint ---
+@app.post("/webhook/genesys")
+async def receive_genesys_webhook(request: Request, data: dict = Body(...)):
+    """Webhook handler for Genesys Finance payment callbacks."""
+    logger.info(f"Received Genesys webhook: {data}")
+
+    identifier = data.get("external_id")
+    if not identifier:
+        identifier = data.get("id")
+
+    if not identifier:
+        logger.warning("Genesys webhook without identifier.")
+        return {"status": "success"}
+
+    genesys_status = data.get("status", "").upper()
+
+    local_status = 'pending'
+    if genesys_status in ['PAID', 'APPROVED', 'COMPLETED']:
+        local_status = 'confirmed'
+        user_id = database.get_transaction_user(identifier)
+        if user_id:
+            database.track_event(user_id, 'payment_success')
+    elif genesys_status in ['FAILED', 'REJECTED', 'CANCELED', 'EXPIRED']:
+        local_status = 'failed'
+    elif genesys_status == 'REFUNDED':
+        local_status = 'refunded'
+
+    logger.info(f"Genesys: Updating transaction {identifier} to {local_status}")
+    database.update_transaction_status(identifier=identifier, status=local_status, oasyfy_id=data.get("id"))
+
+    # UTMfy + TikTok tracking on confirmed
+    if local_status == 'confirmed':
+        try:
+            tx = database.get_transaction(identifier)
+            if tx:
+                user_id = tx.get("user_id")
+                db_user = database.get_user(user_id) if user_id else None
+
+                if db_user:
+                    tracking_data = tx.get("metadata", {})
+                    user_info = {
+                        "id": user_id,
+                        "full_name": db_user.get("full_name"),
+                        "created_at": db_user.get("created_at")
+                    }
+                    product_info = {
+                        "id": tx.get("product_id"),
+                        "name": tx.get("product_id", "Acesso VIP"),
+                        "price": tx.get("amount")
+                    }
+                    approved_now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+
+                    asyncio.create_task(utmfy.send_order(
+                        order_id=identifier, status="paid",
+                        user_data=user_info, product_data=product_info,
+                        tracking_data=tracking_data, transaction_data=tx,
+                        approved_date=approved_now
+                    ))
+
+                    tiktok_user_info = {"full_name": db_user.get("full_name"), "tracking_data": tracking_data}
+                    tiktok_props = {
+                        "contents": [{"content_id": tx.get("product_id"), "content_name": product_info['name']}],
+                        "value": tx.get("amount"), "currency": "BRL"
+                    }
+                    asyncio.create_task(tiktok.send_tiktok_event("CompletePayment", user_id, tiktok_user_info, tiktok_props, event_id=identifier))
+        except Exception as e:
+            logger.error(f"Error in Genesys webhook tracking: {e}")
+
+    return {"status": "success", "processed": True}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
