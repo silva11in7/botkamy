@@ -3,46 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comunicação | Kamy Control</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>Comunicação Elite | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/global.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="/static/global.js"></script>
     <style>
-        .card { padding: 2rem; max-width: 700px; }
-        textarea { width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--text-main); padding: 1.5rem; border-radius: 15px; resize: none; min-height: 200px; font-size: 1rem; margin-top: 1rem; }
-        .btn-send { background: var(--primary); color: white; border: none; padding: 1rem 2rem; border-radius: 12px; font-weight: 700; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 2rem; display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .warning { background: rgba(255, 77, 77, 0.1); color: #ff4d4d; border-radius: 10px; padding: 1rem; font-size: 0.85rem; margin-bottom: 1.5rem; border: 1px solid rgba(255, 77, 77, 0.2); }
+        .broadcast-container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .broadcast-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+        }
+
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: var(--text-dim); font-size: 0.9rem; font-weight: 600; }
+        
+        .type-selector {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .type-btn {
+            flex: 1;
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.02);
+            color: var(--text-dim);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .type-btn.active {
+            background: rgba(var(--primary-rgb), 0.1);
+            border-color: var(--primary);
+            color: var(--text-main);
+        }
+
+        textarea {
+            width: 100%;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            color: var(--text-main);
+            font-family: inherit;
+            resize: vertical;
+            min-height: 150px;
+        }
+
+        .preview-pane {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 1.5rem;
+            position: sticky;
+            top: 2rem;
+        }
+
+        .tg-preview {
+            background: #18222d;
+            border-radius: 14px;
+            overflow: hidden;
+            max-width: 250px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .tg-content { padding: 10px; color: white; font-size: 0.9rem; white-space: pre-wrap; }
+        .tg-media { width: 100%; aspect-ratio: 16/9; background: #242f3d; display: flex; align-items: center; justify-content: center; }
+
+        .broadcast-stats {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
     </style>
 </head>
 <body>
     {% include 'base_sidebar.html' %}
 
     <main class="main">
-        <header style="margin-bottom:3rem">
-            <h1 style="margin:0">Mensagem em Massa (Broadcast)</h1>
-            <p style="color:var(--text-dim)">Envie novidades ou ofertas para toda a sua base de clientes.</p>
+        <header style="margin-bottom: 2rem;">
+            <h1 style="margin:0; font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, var(--text-main), var(--primary)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Broadcast Center</h1>
+            <p style="color:var(--text-dim);">Envie mensagens em massa para seus usuários ativos de forma instantânea.</p>
         </header>
 
-        <div class="card">
-            <div class="warning">
-                <i data-lucide="alert-triangle" style="width:16px; vertical-align:middle"></i> 
-                <strong>CUIDADO:</strong> O envio em massa para muitos usuários pode causar o banimento do seu token pelo Telegram se feito com muita frequência.
+        <div class="broadcast-container">
+            <div class="broadcast-card">
+                <form id="broadcastForm">
+                    <div class="form-group">
+                        <label>Bot Emissor</label>
+                        <select name="bot_id" class="input-field" required>
+                            {% for bot in bots %}
+                            <option value="{{ bot.id }}">{{ bot.name }} ({{ bot.username }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tipo de Mídia</label>
+                        <div class="type-selector">
+                            <button type="button" class="type-btn active" data-type="text">
+                                <i data-lucide="type"></i> Texto
+                            </button>
+                            <button type="button" class="type-btn" data-type="photo">
+                                <i data-lucide="image"></i> Imagem
+                            </button>
+                            <button type="button" class="type-btn" data-type="video">
+                                <i data-lucide="video"></i> Vídeo
+                            </button>
+                        </div>
+                        <input type="hidden" name="media_type" id="mediaTypeInput" value="text">
+                    </div>
+
+                    <div class="form-group" id="mediaUrlGroup" style="display: none;">
+                        <label>URL da Mídia (ou ID da Galeria)</label>
+                        <input type="text" name="media_url" class="input-field" placeholder="https://..." id="mediaUrlInput">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Mensagem (Markdown suportado)</label>
+                        <textarea name="message" id="messageInput" placeholder="Olá, novidades fresquinhas..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; height: 50px;">
+                        <i data-lucide="send"></i> DISPARAR AGORA
+                    </button>
+                </form>
+
+                <div id="broadcastStatus" style="display: none; margin-top: 2rem; padding: 1.5rem; border-radius: 12px; background: rgba(var(--primary-rgb), 0.05); border: 1px solid var(--primary);">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div class="spinner"></div>
+                        <span id="statusText">Processando envio em massa...</span>
+                    </div>
+                </div>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center">
-                <span style="font-weight:600">Alvo do Envio:</span>
-                <span style="color:var(--primary); font-weight:800; font-size:1.2rem">{{ user_count }} Usuários Ativos</span>
-            </div>
-
-            <form action="/broadcast" method="post">
-                <textarea name="message" placeholder="Olá gatão, tem conteúdo novo esperando por você..."></textarea>
-                <button type="submit" class="btn-send">
-                    <i data-lucide="zap"></i> DISPARAR MENSAGENS AGORA
-                </button>
-            </form>
+            <aside class="preview-pane">
+                <h4 style="margin-top:0; color:var(--text-dim); text-transform: uppercase; font-size: 0.8rem;">Preview Telegram</h4>
+                <div class="tg-preview">
+                    <div class="tg-media" id="previewMedia" style="display: none;">
+                        <i data-lucide="image" style="color:#242f3d;"></i>
+                    </div>
+                    <div class="tg-content" id="previewText">A sua mensagem aparecerá aqui...</div>
+                </div>
+                <div class="broadcast-stats">
+                    Alcance estimado: <strong>{{ user_count }} usuários</strong>
+                </div>
+            </aside>
         </div>
     </main>
-    <script>lucide.createIcons();</script>
+
+    <script>
+        // UI Logic
+        const typeBtns = document.querySelectorAll('.type-btn');
+        const mediaInput = document.getElementById('mediaTypeInput');
+        const mediaGroup = document.getElementById('mediaUrlGroup');
+        const previewMedia = document.getElementById('previewMedia');
+        const previewText = document.getElementById('previewText');
+        const msgInput = document.getElementById('messageInput');
+        const mediaUrlInput = document.getElementById('mediaUrlInput');
+
+        typeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                typeBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const type = btn.dataset.type;
+                mediaInput.value = type;
+                mediaGroup.style.display = type === 'text' ? 'none' : 'block';
+                previewMedia.style.display = type === 'text' ? 'none' : 'flex';
+            });
+        });
+
+        msgInput.addEventListener('input', (e) => {
+            previewText.innerText = e.target.value || 'A sua mensagem aparecerá aqui...';
+        });
+
+        // Form Submission
+        document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const statusDiv = document.getElementById('broadcastStatus');
+            const statusText = document.getElementById('statusText');
+
+            if(!confirm("Tem certeza que deseja enviar esta mensagem para TODOS os usuários? Esta ação não pode ser desfeita.")) return;
+
+            statusDiv.style.display = 'block';
+            statusText.innerText = "Iniciando disparos...";
+
+            try {
+                const res = await fetch('/api/broadcast', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await res.json();
+                
+                if(result.status === 'ok') {
+                    statusText.innerText = result.summary;
+                    alert("Broadcast finalizado!\n" + result.summary);
+                } else {
+                    statusText.innerText = "Erro: " + result.error;
+                }
+            } catch (err) {
+                statusText.innerText = "Erro de conexão fatal.";
+            }
+        });
+    </script>
 </body>
 </html>

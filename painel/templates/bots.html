@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Bots | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
+    <style>
+        .bots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .bot-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            position: relative;
+            transition: 0.3s;
+        }
+
+        .bot-card:hover { transform: translateY(-5px); border-color: var(--primary); }
+
+        .bot-status {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-online { background: var(--success); box-shadow: 0 0 10px var(--success); }
+        .status-offline { background: var(--text-dim); }
+
+        .bot-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--primary-glow);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .bot-info h3 { margin: 0; font-size: 1.1rem; }
+        .bot-info p { margin: 4px 0 0; color: var(--text-dim); font-size: 0.85rem; }
+
+        .bot-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn-toggle {
+            flex: 1;
+            padding: 0.6rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: none;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-toggle.active { background: var(--success); color: #000; border-color: var(--success); }
+
+        .btn-delete {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: none;
+            color: var(--danger);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-delete:hover { background: var(--danger); color: white; border-color: var(--danger); }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+            padding: 2.5rem;
+            border-radius: 32px;
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        .form-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-dim); }
+        .form-group input {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .form-group input:focus { border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 style="margin:0; font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, var(--text-main), var(--primary)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Gerenciamento de Bots</h1>
+                <p style="color:var(--text-dim);">Conecte e gerencie múltiplos tokens do BotFather.</p>
+            </div>
+            <button class="btn-primary" onclick="openModal()">
+                <i data-lucide="plus"></i> Novo Bot
+            </button>
+        </header>
+
+        <div class="bots-grid">
+            {% for bot in bots %}
+            <div class="bot-card" data-bot-id="{{ bot.id }}">
+                <div class="bot-status">
+                    <div class="status-dot {{ 'status-online' if bot.is_active else 'status-offline' }}"></div>
+                    {{ 'ONLINE' if bot.is_active else 'OFFLINE' }}
+                </div>
+                <div class="bot-icon">
+                    <i data-lucide="bot" style="width:24px;height:24px"></i>
+                </div>
+                <div class="bot-info">
+                    <h3>{{ bot.name }}</h3>
+                    <p>{{ bot.username or '@Carregando...' }}</p>
+                    <p style="font-size: 0.7rem; font-family: monospace; opacity: 0.5; margin-top: 8px;">
+                        TOKEN: {{ bot.token[:10] }}...{{ bot.token[-5:] }}
+                    </p>
+                </div>
+                <div class="bot-actions">
+                    <button class="btn-toggle {{ 'active' if bot.is_active }}" 
+                            data-id="{{ bot.id }}" 
+                            data-active="{{ 'false' if bot.is_active else 'true' }}"
+                            onclick="handleToggle(this)">
+                        <i data-lucide="{{ 'pause' if bot.is_active else 'play' }}" style="width:16px; margin-right:4px;"></i>
+                        {{ 'Pausar' if bot.is_active else 'Ativar' }}
+                    </button>
+                    <button class="btn-toggle" 
+                            data-id="{{ bot.id }}"
+                            data-ai-enabled="{{ 'true' if bot.ai_enabled else 'false' }}"
+                            data-prompt="{{ bot.system_prompt }}"
+                            onclick="handleAI(this)"
+                            style="border-color: #00a67e; color: #00a67e;">
+                        <i data-lucide="brain-circuit" style="width:16px; margin-right:4px;"></i>
+                        IA
+                    </button>
+                    <button class="btn-delete" data-id="{{ bot.id }}" onclick="handleDelete(this)" title="Excluir Bot">
+                        <i data-lucide="trash-2" style="width:18px"></i>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if not bots %}
+            <div style="grid-column: 1/-1; text-align: center; padding: 4rem; color: var(--text-dim);">
+                <i data-lucide="info" style="width:48px; height:48px; margin-bottom: 1rem; opacity: 0.2;"></i>
+                <p>Nenhum bot configurado ainda. <br> Clique em "Novo Bot" para começar!</p>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Modal Adicionar Bot -->
+    <div id="addBotModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin:0; font-weight: 800;">Adicionar Novo Bot</h2>
+            <p style="color:var(--text-dim); font-size: 0.9rem; margin-top: -10px;">Insira o token fornecido pelo @BotFather.</p>
+            
+            <div class="form-group">
+                <label>Nome do Bot (Interno)</label>
+                <input type="text" id="botName" placeholder="Ex: Bot Kamy Principal">
+            </div>
+            
+            <div class="form-group">
+                <label>Token do Telegram</label>
+                <input type="text" id="botToken" placeholder="123456789:ABCDE...">
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button class="btn-secondary" style="flex:1" onclick="closeModal()">Cancelar</button>
+                <button class="btn-primary" style="flex:2" onclick="saveBot()" id="btnSaveBot">Salvar Bot</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configurar IA -->
+    <div id="aiModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <h2 style="margin:0; font-weight: 800;">Kamylinha AI Personality</h2>
+            <p style="color:var(--text-dim); font-size: 0.9rem; margin-top: -10px;">Ajuste como a IA deve conversar com seus leads.</p>
+            
+            <input type="hidden" id="currentBotId">
+            
+            <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; display: flex;">
+                <label>Ativar Atendimento IA</label>
+                <input type="checkbox" id="aiEnabled" style="width: auto;">
+            </div>
+
+            <div class="form-group">
+                <label>System Prompt (Instruções de Personalidade)</label>
+                <textarea id="systemPrompt" style="background: var(--card-bg); border: 1px solid var(--border); padding: 1rem; border-radius: 12px; color: var(--text-main); font-family: inherit; font-size: 0.9rem; min-height: 250px; outline: none; width: 100%; box-sizing: border-box;"></textarea>
+                <p style="font-size: 0.75rem; color: var(--text-dim);">DICA: Descreva gírias, como ela trata o cliente e como deve contornar "tá caro".</p>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button class="btn-secondary" style="flex:1" onclick="closeAIModal()">Cancelar</button>
+                <button class="btn-primary" style="flex:2; background: #00a67e;" onclick="saveAISettings()">Salvar Personalidade</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        function openModal() { document.getElementById('addBotModal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('addBotModal').style.display = 'none'; }
+
+        function handleAI(btn) {
+            document.getElementById('currentBotId').value = btn.dataset.id;
+            document.getElementById('aiEnabled').checked = btn.dataset.aiEnabled === 'true';
+            document.getElementById('systemPrompt').value = btn.dataset.prompt;
+            document.getElementById('aiModal').style.display = 'flex';
+        }
+        function closeAIModal() { document.getElementById('aiModal').style.display = 'none'; }
+
+        async function saveAISettings() {
+            const botId = document.getElementById('currentBotId').value;
+            const ai_enabled = document.getElementById('aiEnabled').checked;
+            const system_prompt = document.getElementById('systemPrompt').value;
+
+            try {
+                const res = await fetch(`/api/bots/${botId}/ai`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ai_enabled, system_prompt })
+                });
+                if(res.ok) location.reload();
+                else alert('Erro ao salvar as configurações de IA');
+            } catch(e) { alert('Erro na requisição'); }
+        }
+
+        async function saveBot() {
+            const name = document.getElementById('botName').value;
+            const token = document.getElementById('botToken').value;
+
+            if(!name || !token) return alert('Preencha todos os campos!');
+            
+            const btn = document.getElementById('btnSaveBot');
+            btn.disabled = true;
+            btn.innerText = 'Salvando...';
+
+            try {
+                const res = await fetch('/api/bots', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, token })
+                });
+                const data = await res.json();
+                if(data.status === 'ok') {
+                    location.reload();
+                } else {
+                    alert('Erro: ' + data.error);
+                }
+            } catch(e) {
+                alert('Erro ao salvar bot');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Salvar Bot';
+            }
+        }
+
+        async function handleToggle(btn) {
+            const id = btn.dataset.id;
+            const status = btn.dataset.active === 'true';
+            try {
+                const res = await fetch(`/api/bots/${id}/toggle`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: status })
+                });
+                if(res.ok) location.reload();
+            } catch(e) { alert('Erro ao alternar bot'); }
+        }
+
+        async function handleDelete(btn) {
+            const id = btn.dataset.id;
+            if(!confirm('Tem certeza que deseja excluir este bot? Esta ação não pode ser desfeita.')) return;
+            try {
+                const res = await fetch(`/api/bots/${id}`, { method: 'DELETE' });
+                if(res.ok) location.reload();
+            } catch(e) { alert('Erro ao deletar bot'); }
+        }
+    </script>
+</body>
+</html>

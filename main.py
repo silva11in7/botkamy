@@ -6,7 +6,9 @@ import io
 import random
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from openai import OpenAI
+import httpx
 from api import gateway, utmfy, tiktok
 from datetime import datetime, timezone
 import secrets
@@ -27,36 +29,29 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+logger = logging.getLogger(__name__)
 
-# Track pending reminders: {user_id: asyncio.Task}
+# Track pending reminders: {bot_id: {user_id: asyncio.Task}}
 pending_reminders = {}
 
-# Media cache to avoid re-uploading files: {file_path: file_id}
-media_cache = {
-    "banner": None,
-    "reminder_videos": {}
-}
+# Media cache: {bot_id: {key: file_id}}
+media_cache = {}
 
 def get_media_source(key, default_rel_path):
     """Safely gets media path from DB or fallback to default."""
     try:
         custom_path = database.get_bot_content(key)
         if custom_path and custom_path.startswith("/media/"):
-            # Paths mapped in painel are relative to painel/ folder
             full_path = os.path.join("painel", custom_path.lstrip("/"))
             if os.path.exists(full_path):
                 return full_path
     except Exception as e:
-        print(f"[ERROR] get_media_source for {key}: {e}")
+        logger.error(f"get_media_source error: {e}")
     return default_rel_path
 
-# --- Content Data (Now Dynamic) ---
+# --- Product Data ---
 def get_products():
     return database.get_active_products()
-
-# Fallback for initialization
-INITIAL_PRODUCTS = get_products()
 
 # --- Inactivity Reminder Data ---
 INACTIVITY_TEXT = (
@@ -74,7 +69,6 @@ INACTIVITY_KEYBOARD = [
     [InlineKeyboardButton("SUPORTE 💬", callback_data='support')]
 ]
 
-# --- Inactivity Reminder Stage 2 Data ---
 IMAGINA_TEXT = (
     "imagina essa cena aqui... 💭\n\n"
     "Eu de joelhos 😈\n"
@@ -95,8 +89,71 @@ IMAGINA_KEYBOARD = [
     [InlineKeyboardButton("SUPORTE 💬", callback_data='support')]
 ]
 
+async def get_ai_response(bot_id: str, user_id: int, user_message: str):
+    """Generates a response using OpenAI based on bot-specific personality."""
+    api_key = database.get_setting("openai_api_key")
+    if not api_key:
+        logger.warning("OpenAI API Key not configured.")
+        return None
+    
+    # Get bot config for prompt and enablement
+    all_bots = database.get_all_managed_bots()
+    bot_config = next((b for b in all_bots if b['id'] == bot_id), None)
+    
+    if not bot_config or not bot_config.get("ai_enabled"):
+        return None
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        history = database.get_ai_history(bot_id, user_id)
+        
+        system_prompt = bot_config.get("system_prompt", "Você é a Kamylinha, uma vendedora carismática.")
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        for h in history:
+            messages.append({"role": h["role"], "content": h["content"]})
+        
+        messages.append({"role": "user", "content": user_message})
+        
+        # Save user message to history
+        database.add_ai_history(bot_id, user_id, "user", user_message)
+        
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=400,
+            temperature=0.8
+        )
+        
+        ai_reply = response.choices[0].message.content
+        
+        # Save AI reply to history
+        database.add_ai_history(bot_id, user_id, "assistant", ai_reply)
+        
+        return ai_reply
+    except Exception as e:
+        logger.error(f"OpenAI Error: {e}")
+        return None
+
+async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Main handler for non-command text messages."""
+    if await check_maintenance(update): return
+    
+    user = update.effective_user
+    bot_id = context.application.bot_data.get("bot_id")
+    user_message = update.message.text
+    
+    # Check if AI should respond
+    ai_reply = await get_ai_response(bot_id, user.id, user_message)
+    
+    if ai_reply:
+        await update.message.reply_text(ai_reply)
+    else:
+        # Fallback or just ignore if not enabled
+        pass
+
 async def check_maintenance(update: Update):
-    """Checks if the bot is in maintenance mode."""
     is_maintenance = database.get_setting("maintenance_mode", "false").lower() == "true"
     if is_maintenance:
         msg = "🛠 **MODO MANUTENÇÃO**\n\nEstamos fazendo algumas melhorias rápidas. Voltamos em instantes! 😘"
@@ -107,619 +164,333 @@ async def check_maintenance(update: Update):
         return True
     return False
 
-async def run_reminder(user_id: int, chat_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """Waits for 5 seconds and sends the inactivity reminder with a video."""
-    print(f"[DEBUG] Reminder task STARTED for user {user_id}")
+async def run_reminder(user_id: int, chat_id: int, context: ContextTypes.DEFAULT_TYPE, bot_id: str, product_id: str = None):
+    """Smart CRM Multi-stage recovery."""
     try:
-        # Step 1: Wait 30 seconds
-        await asyncio.sleep(30)
-        print(f"[DEBUG] Reminder timer EXPIRED (30s) for user {user_id}. Sending video...")
-        # Stage 1: Random Video + 15% OFF
-        # Try to get dynamic videos from DB, fallback to hardcoded list
-        custom_v1 = get_media_source("inactivity_video_1", "imgs/videokamyrebo.mp4")
-        custom_v2 = get_media_source("inactivity_video_2", "imgs/1.mp4")
-        custom_v3 = get_media_source("inactivity_video_3", "imgs/2.mp4")
+        # Stage 1: 10 Minutes - Video Objeção/Curiosidade
+        await asyncio.sleep(600) # 10 min
+        database.update_abandoned_checkout(user_id, bot_id, last_stage=1)
         
-        video_files = [custom_v1, custom_v2, custom_v3]
-        chosen_video = random.choice(video_files)
-        
-        if os.path.exists(chosen_video):
-            # Check cache for file_id
-            cached_id = media_cache["reminder_videos"].get(chosen_video)
-            
-            try:
-                msg = await context.bot.send_video(
-                    chat_id=chat_id,
-                    video=cached_id or open(chosen_video, 'rb'),
-                    caption="🔥 **NÃO VAI EMBORA!**\n\nPreparei um presente especial: **15% de DESCONTO** exclusivo pra você hoje! 🎁🎬",
-                    reply_markup=InlineKeyboardMarkup(INACTIVITY_KEYBOARD),
-                    parse_mode='Markdown'
-                )
-                # Store file_id if not cached
-                if not cached_id and msg.video:
-                    media_cache["reminder_videos"][chosen_video] = msg.video.file_id
-            except Exception as e:
-                print(f"[ERROR] Failed to send reminder video: {e}")
-                # Fallback text if sending fails
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text="🔥 **ESPERA!** Preparei um desconto de **15% OFF** pra você não perder nada hoje! 🎁",
-                    reply_markup=InlineKeyboardMarkup(INACTIVITY_KEYBOARD),
-                    parse_mode='Markdown'
-                )
-        else:
-            print(f"[ERROR] Video file {chosen_video} not found for reminder.")
-            # Fallback if video is missing
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="🔥 **ESPERA!** Preparei um desconto de **15% OFF** pra você não perder nada hoje! 🎁",
-                reply_markup=InlineKeyboardMarkup(INACTIVITY_KEYBOARD),
-                parse_mode='Markdown'
-            )
-        print(f"[DEBUG] Reminder level 1 SENT to user {user_id}")
+        custom_v1 = get_media_source("recovery_v10m", "imgs/videokamyrebo.mp4")
+        c_bot = media_cache.setdefault(bot_id, {})
+        cached_id = c_bot.get(custom_v1)
 
-        # --- Stage 2: 20 more seconds ---
-        await asyncio.sleep(20)
-        print(f"[DEBUG] Reminder stage 2 timer EXPIRED (20s) for user {user_id}. Sending photo...")
-        
-        photo_path = os.path.join("imgs", "kamyimagina.jpeg")
-        
-        if os.path.exists(photo_path):
-            with open(photo_path, 'rb') as photo:
-                await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo,
-                    caption=IMAGINA_TEXT,
-                    reply_markup=InlineKeyboardMarkup(IMAGINA_KEYBOARD)
-                )
-        else:
-            print(f"[DEBUG] Photo not found at {photo_path}, falling back to text.")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=IMAGINA_TEXT,
-                reply_markup=InlineKeyboardMarkup(IMAGINA_KEYBOARD)
-            )
-        print(f"[DEBUG] Reminder level 2 SENT to user {user_id}")
+        await context.bot.send_video(
+            chat_id=chat_id,
+            video=cached_id or open(custom_v1, 'rb'),
+            caption="🔥 **NÃO VAI EMBORA!**\n\nVi que você quase liberou seu acesso... preparei um presente especial: **15% de DESCONTO** exclusivo pra você hoje! 🎁🎬",
+            reply_markup=InlineKeyboardMarkup(INACTIVITY_KEYBOARD),
+            parse_mode='Markdown'
+        )
 
-    except asyncio.CancelledError:
-        print(f"[DEBUG] Reminder task CANCELLED for user {user_id}")
-    except Exception as e:
-        print(f"[DEBUG] ERROR in reminder task for user {user_id}: {e}")
-        logging.error(f"Error in reminder task for user {user_id}: {e}")
+        # Stage 2: 1 Hour - Áudio Real (Conversa)
+        await asyncio.sleep(3000) # + 50 min = 1 hour total
+        database.update_abandoned_checkout(user_id, bot_id, last_stage=2)
+        
+        audio_path = get_media_source("recovery_audio_1h", "imgs/audio_venda.ogg") # Supondo existir
+        if os.path.exists(audio_path):
+            await context.bot.send_voice(chat_id=chat_id, voice=open(audio_path, 'rb'), caption="Escuta esse áudio que gravei pra você... ❤️")
+        else:
+            await context.bot.send_message(chat_id=chat_id, text="Ainda tá aí? Quero muito te ver lá dentro do VIP... chama o suporte se tiver dúvida! 💬")
+
+        # Stage 3: 24 Hours - Cupom 50% OFF (Oportunidade Única)
+        await asyncio.sleep(82800) # + 23 hours = 24h total
+        database.update_abandoned_checkout(user_id, bot_id, last_stage=3)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="🚨 **ÚLTIMA CHANCE: 50% DE DESCONTO** 🚨\n\nNão quero que você fique de fora. Só pelas próximas 2h, liberei o acesso pela METADE do preço. Aproveita agora ou perca pra sempre! 👇",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔥 LIBERAR 50% OFF AGORA", callback_data='buy_vip_vital_disc_50')]])
+        )
+
+        # Stage 4: 3 Days - Retargeting "Saudade"
+        await asyncio.sleep(172800) # + 2 days = 3 days total
+        database.update_abandoned_checkout(user_id, bot_id, last_stage=4)
+        await context.bot.send_message(chat_id=chat_id, text="Sumido(a)... 👀\n\nPassando pra dizer que postei conteúdos novos que você ia AMAR. Volta aqui? ❤️")
+
+    except asyncio.CancelledError: pass
+    except Exception as e: logger.error(f"Reminder error: {e}")
     finally:
-        if user_id in pending_reminders:
-            del pending_reminders[user_id]
-        print(f"[DEBUG] Reminder task CLEANED UP for user {user_id}")
+        if bot_id in pending_reminders and user_id in pending_reminders[bot_id]:
+            del pending_reminders[bot_id][user_id]
+
+# --- CRM Recovery Configuration ---
+RECOVERY_STAGES = {
+    1: {"delay": 600, "type": "video", "media_key": "recovery_v10m", "default_media": "imgs/videokamyrebo.mp4", "caption": "🔥 **NÃO VAI EMBORA!**\n\nVi que você quase liberou seu acesso... preparei um presente especial: **15% de DESCONTO** exclusivo pra você hoje! 🎁🎬", "markup": INACTIVITY_KEYBOARD},
+    2: {"delay": 3600, "type": "voice", "media_key": "recovery_audio_1h", "default_media": "imgs/audio_venda.ogg", "caption": "Escuta esse áudio que gravei pra você... ❤️"},
+    3: {"delay": 86400, "type": "text", "content": "🚨 **ÚLTIMA CHANCE: 50% DE DESCONTO** 🚨\n\nNão quero que você fique de fora. Só pelas próximas 2h, liberei o acesso pela METADE do preço. Aproveita agora ou perca pra sempre! 👇", "markup": InlineKeyboardMarkup([[InlineKeyboardButton("🔥 LIBERAR 50% OFF AGORA", callback_data='buy_vip_vital_disc_50')]])},
+    4: {"delay": 259200, "type": "text", "content": "Sumido(a)... 👀\n\nPassando pra dizer que postei conteúdos novos que você ia AMAR. Volta aqui? ❤️"}
+}
+
+async def run_recovery_worker(bot_id: str, app):
+    """Background worker to check and send persistent recovery messages."""
+    logger.info(f"Recovery worker started for bot {bot_id}")
+    while True:
+        try:
+            pending = await asyncio.to_thread(database.get_pending_abandoned, bot_id)
+            for rec in pending:
+                now = datetime.now(timezone.utc)
+                created_at = datetime.fromisoformat(rec['created_at'].replace('Z', '+00:00'))
+                seconds_since = (now - created_at).total_seconds()
+                
+                next_stage = rec['last_stage'] + 1
+                if next_stage in RECOVERY_STAGES:
+                    stage_cfg = RECOVERY_STAGES[next_stage]
+                    if seconds_since >= stage_cfg['delay']:
+                        try:
+                            user_id = rec['user_id']
+                            chat_id = user_id # Assuming DM
+                            
+                            if stage_cfg['type'] == 'video':
+                                media = get_media_source(stage_cfg['media_key'], stage_cfg['default_media'])
+                                await app.bot.send_video(chat_id=chat_id, video=open(media, 'rb'), caption=stage_cfg['caption'], reply_markup=stage_cfg['markup'], parse_mode='Markdown')
+                            elif stage_cfg['type'] == 'voice':
+                                media = get_media_source(stage_cfg['media_key'], stage_cfg['default_media'])
+                                if os.path.exists(media):
+                                    await app.bot.send_voice(chat_id=chat_id, voice=open(media, 'rb'), caption=stage_cfg['caption'])
+                                else:
+                                    await app.bot.send_message(chat_id=chat_id, text="Ainda tá aí? Quero muito te ver lá dentro do VIP... ❤️")
+                            elif stage_cfg['type'] == 'text':
+                                await app.bot.send_message(chat_id=chat_id, text=stage_cfg['content'], reply_markup=stage_cfg.get('markup'), parse_mode='Markdown')
+                            
+                            # Update DB
+                            await asyncio.to_thread(database.update_abandoned_checkout, user_id, bot_id, last_stage=next_stage)
+                            logger.info(f"Recovery Stage {next_stage} sent to {user_id} for bot {bot_id}")
+                            
+                        except Exception as e:
+                            logger.error(f"Error sending recovery to {rec['user_id']}: {e}")
+                            if "Forbidden" in str(e) or "blocked" in str(e).lower():
+                                await asyncio.to_thread(database.update_abandoned_checkout, rec['user_id'], bot_id, status="failed")
+
+            await asyncio.sleep(60) # Scan every minute
+        except Exception as e:
+            logger.error(f"Recovery worker error for bot {bot_id}: {e}")
+            await asyncio.sleep(60)
 
 def parse_start_payload(payload: str) -> Dict[str, str]:
-    """Parses standard and custom tracking parameters from the start payload."""
     tracking = {}
     if not payload: return tracking
-    
-    # Example format: ttclid_12345_utms_tiktok_utmm_cpc
     if "_" in payload:
         parts = payload.split("_")
         for i in range(0, len(parts) - 1, 2):
-            key = parts[i]
-            val = parts[i+1]
+            key, val = parts[i], parts[i+1]
             if key == "ttclid": tracking["ttclid"] = val
             elif key == "utms": tracking["utm_source"] = val
             elif key == "utmm": tracking["utm_medium"] = val
             elif key == "utmc": tracking["utm_campaign"] = val
             elif key == "utmt": tracking["utm_term"] = val
             elif key == "utmn": tracking["utm_content"] = val
-    else:
-        # Fallback: Treat as ttclid if no separators
-        tracking["ttclid"] = payload
-        
+    else: tracking["ttclid"] = payload
     return tracking
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Entry point: Welcome Message with Banner."""
     user = update.effective_user
+    bot_id = context.application.bot_data.get("bot_id")
     
-    # Parse tracking data from /start payload
-    tracking_data = {}
-    if context.args:
-        tracking_data = parse_start_payload(context.args[0])
-        print(f"[DEBUG] Tracking detected for user {user.id}: {tracking_data}")
-
-    # Log user with tracking data
-    asyncio.create_task(asyncio.to_thread(database.log_user, user.id, user.username, user.full_name, tracking_data))
+    tracking_data = parse_start_payload(context.args[0]) if context.args else {}
+    asyncio.create_task(asyncio.to_thread(database.log_user, user.id, user.username, user.full_name, tracking_data, bot_id=bot_id))
+    asyncio.create_task(asyncio.to_thread(database.track_event, user.id, 'start', bot_id=bot_id))
     
-    # Track event in DB
-    asyncio.create_task(asyncio.to_thread(database.track_event, user.id, 'start'))
-    
-    # TikTok Contact Event
-    user_info = {
-        "full_name": user.full_name,
-        "username": user.username,
-        "tracking_data": tracking_data
-    }
+    user_info = {"full_name": user.full_name, "username": user.username, "tracking_data": tracking_data}
     asyncio.create_task(tiktok.send_tiktok_event("Contact", user.id, user_info))
 
-    # Fetch content and products safely in threads
-    welcome_text = await asyncio.to_thread(database.get_bot_content, "welcome_text", "Olá gatão! Escolha seu plano abaixo e comece agora:")
-    # Build Keyboard
+    welcome_text = await asyncio.to_thread(database.get_bot_content, "welcome_text", "Olá! Escolha seu plano e comece agora:")
     keyboard = []
-    
-    # Adicionar produtos linkados primeiro
     linked_prod_ids = await asyncio.to_thread(database.get_products_for_content, "welcome_text")
     if linked_prod_ids:
         all_prods = await asyncio.to_thread(database.get_active_products)
         for prod_id in linked_prod_ids:
             product = all_prods.get(prod_id)
             if product:
-                # Formatar preço igual ao exemplo do usuário
-                price_val = product['price']
-                price_formated = f"R${price_val:,.2f}".replace('.', 'v').replace(',', '.').replace('v', ',')
-                btn_label = f"🔥 {product['name']} POR {price_formated}"
+                btn_label = f"🔥 {product['name']} POR R${product['price']:.2f}"
                 keyboard.append([InlineKeyboardButton(btn_label, callback_data=f"buy_{prod_id}")])
 
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
-    
-    # Dynamic Banner
     photo_path = get_media_source("welcome_photo", os.path.join("imgs", "3banner.mp4"))
     
+    c_bot = media_cache.setdefault(bot_id, {})
+    cached_id = c_bot.get("banner")
+
     if os.path.exists(photo_path):
-        # Check cache for file_id
-        cached_id = media_cache.get("banner")
-        
         try:
             if photo_path.lower().endswith(('.mp4', '.mov', '.avi')):
-                msg = await update.message.reply_video(
-                    video=cached_id or open(photo_path, 'rb'),
-                    caption=welcome_text,
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
-                )
-                if not cached_id and msg.video:
-                    media_cache["banner"] = msg.video.file_id
+                msg = await update.message.reply_video(video=cached_id or open(photo_path, 'rb'), caption=welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+                if not cached_id and msg.video: c_bot["banner"] = msg.video.file_id
             else:
-                msg = await update.message.reply_photo(
-                    photo=cached_id or open(photo_path, 'rb'),
-                    caption=welcome_text,
-                    reply_markup=reply_markup,
-                    parse_mode='Markdown'
-                )
-                if not cached_id and msg.photo:
-                    media_cache["banner"] = msg.photo[-1].file_id
+                msg = await update.message.reply_photo(photo=cached_id or open(photo_path, 'rb'), caption=welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+                if not cached_id and msg.photo: c_bot["banner"] = msg.photo[-1].file_id
         except Exception as e:
-            print(f"[ERROR] Failed to send banner: {e}")
             await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
     else:
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
     
-    # Schedule inactivity reminder
-    user_id = user.id
-    if user_id in pending_reminders:
-        pending_reminders[user_id].cancel()
-    pending_reminders[user_id] = asyncio.create_task(run_reminder(user_id, update.effective_chat.id, context))
-
-async def post_init(application):
-    """Sets the bot commands and profile descriptions."""
-    # 1. Set Menu Commands
-    commands = [
-        BotCommand("iniciar", "Iniciar o robô 🤖"),
-        BotCommand("start", "Recomeçar 🔄")
-    ]
-    await application.bot.set_my_commands(commands)
-    
-    # 2. Set "What can this bot do?" Description (shown before start)
-    description_text = (
-        "oi delícia😈\n"
-        "Minhas putarias +18 mais escondidas, tudo\n"
-        "organizadinho pra você achar rapidinho o\n"
-        "que quer.\n\n"
-        "clica em \"INCIAR\" que eu libero tudo agora\n"
-        "👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻👇🏻"
-    )
-    await application.bot.set_my_description(description_text)
-    
-    # 3. Set Short Description (shown on profile)
-    await application.bot.set_my_short_description("O melhor conteúdo VIP da Kamy! 🔥😈")
-    
-    print("[DEBUG] Bot commands and descriptions set successfully.")
-
-async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays the main menu."""
-    keyboard = [
-        [InlineKeyboardButton("VIP VITALICIO + 🔥 LIVES POR R$29,91", callback_data='buy_vip_live')],
-        [InlineKeyboardButton("VIP VITALICIO 💎 POR R$21,91", callback_data='buy_vip_vital')],
-        [InlineKeyboardButton("VIP MENSAL � POR R$17,91", callback_data='buy_vip_mensal')],
-        [InlineKeyboardButton("SUPORTE 💬", callback_data='support')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    # Check if called from callback or message
-    if update.callback_query:
-        await update.callback_query.edit_message_text(
-            text="Bem-vindo(a) ao meu espaço secreto! 😈\nEscolha uma opção abaixo:",
-            reply_markup=reply_markup
-        )
-    else:
-        await update.message.reply_text(
-            text="Bem-vindo(a) ao meu espaço secreto! 😈\nEscolha uma opção abaixo:",
-            reply_markup=reply_markup
-        )
+    b_reminders = pending_reminders.setdefault(bot_id, {})
+    if user.id in b_reminders: b_reminders[user.id].cancel()
+    b_reminders[user.id] = asyncio.create_task(run_reminder(user.id, update.effective_chat.id, context, bot_id))
 
 async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lists available products."""
     keyboard = []
     products = get_products()
-    for product_id, details in products.items():
-        price_formated = f"R$ {details['price']}".replace(".", ",")
-        btn_text = f"{details['name']} - {price_formated}"
-        keyboard.append([InlineKeyboardButton(btn_text, callback_data=f'prod_{product_id}')])
-    
+    for pid, details in products.items():
+        keyboard.append([InlineKeyboardButton(f"{details['name']} - R${details['price']:.2f}", callback_data=f'prod_{pid}')])
     keyboard.append([InlineKeyboardButton("🔙 Voltar ao Menu", callback_data='main_menu')])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.callback_query.edit_message_text(
-        text="🔥 **Catálogo de Conteúdos** 🔥\n\nSelecione um item para ver detalhes:",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
-
-async def product_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: str):
-    """Shows details for a specific product."""
-    products = get_products()
-    product = products.get(product_id)
-    if not product:
-        await update.callback_query.answer("Produto não encontrado.", show_alert=True)
-        return
-
-    keyboard = [
-        [InlineKeyboardButton("💳 Comprar Agora", callback_data=f'buy_{product_id}')],
-        [InlineKeyboardButton("🔙 Voltar aos Conteúdos", callback_data='list_products')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    price_formated = f"R$ {product['price']}".replace(".", ",")
-    
-    # NEW V3.5: Dynamic custom description for product
-    # If there's a custom key linked to this product, we can use it.
-    # Looking for a key that might be a 'product_description' or similar if linked.
-    # For now, let's use the core description but look if there's a custom override.
-    custom_text = database.get_content_for_product(f"desc_{product_id}", product_id, None)
-    display_desc = custom_text if custom_text else product['desc']
-    
-    text = (
-        f"🔞 **{product['name']}**\n\n"
-        f"📝 {display_desc}\n"
-        f"💰 Preço: **{price_formated}**\n\n"
-        "O envio é imediato após a confirmação do pagamento!"
-    )
-    
-    # --- NEW V3.5: Safety for Edit ---
-    try:
-        await update.callback_query.edit_message_text(
-            text=text,
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-    except:
-        # Fallback if message cannot be edited (e.g. is a media message)
-        await update.callback_query.message.reply_text(
-            text=text,
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-
-    # --- NEW V3.5: Send Linked Follow-up Messages ---
-    linked_msgs = database.get_linked_content_for_product(product_id)
-    for msg in linked_msgs:
-        # Avoid showing the standard description override twice if it's already used as desc_{id}
-        if msg['key'] == f"desc_{product_id}":
-            continue
-            
-        markup = None
-        if msg.get('button_text') and msg.get('button_url'):
-            markup = InlineKeyboardMarkup([[InlineKeyboardButton(msg['button_text'], url=msg['button_url'])]])
-            
-        await update.callback_query.message.reply_text(
-            text=msg['value'],
-        )
+    await update.callback_query.edit_message_text(text="🔥 **Catálogo de Conteúdos** 🔥", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
 async def handle_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: str):
-    """Handles the purchase flow using Babylon API."""
     if await check_maintenance(update): return
     query = update.callback_query
     user = update.effective_user
-    user_id = user.id
-    client_email = f"user_{user_id}@telegram.com" # Global for this function scope
+    bot_id = context.application.bot_data.get("bot_id")
     
     product = get_products().get(product_id)
-    if not product:
-        await query.answer("Produto não encontrado.", show_alert=True)
-        return
+    if not product: return await query.answer("Produto não encontrado.", show_alert=True)
 
-    # Cancel inactivity reminder if user chooses a package
-    if user_id in pending_reminders:
-        print(f"[DEBUG] Package selected. Cancelling reminders for user {user_id}")
-        pending_reminders[user_id].cancel()
-        del pending_reminders[user_id]
+    b_reminders = pending_reminders.get(bot_id, {})
+    if user.id in b_reminders:
+        b_reminders[user.id].cancel()
+        del b_reminders[user.id]
         
-    # Get internal user data (for tracking)
-    db_user = await asyncio.to_thread(database.get_user, user_id)
-    tracking_data = {}
-    if db_user:
-        # Extract tracking fields
-        for key in ["ttclid", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]:
-            if db_user.get(key):
-                tracking_data[key] = db_user[key]
+    db_user = await asyncio.to_thread(database.get_user, user.id)
+    tracking_data = {k: db_user[k] for k in ["ttclid", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] if db_user and db_user.get(k)}
 
-    await query.message.reply_text("Certo, me dá só um minuto enquanto gero seu Pix de pagamento...")
-    
-    # Generate unique identifier
+    await query.message.reply_text("Gerando seu Pix...")
     identifier = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(10))
-    
-    # Create Pix payment via Babylon
-    client_email = f"user_{user_id}@telegram.com"
-    print(f"[DEBUG] Tentando gerar Pix para {product_id} - R${product['price']}")
-    
-    # Track "InitiateCheckout" in UTMfy as "waiting_payment" order
-    # Use exact same timestamp for DB and Utmify
     order_ts = datetime.now(timezone.utc).isoformat()
     
-    user_info = {
-        "id": user_id,
-        "full_name": user.full_name,
-        "ip": None # Can't get easily from bot, but let's leave it null
-    }
-    product_info = {
-        "id": product_id,
-        "name": product['name'],
-        "price": product['price']
-    }
-    tx_data = {"created_at": order_ts} # For utmfy.py to parse
+    asyncio.create_task(utmfy.send_order(identifier, "waiting_payment", {"id": user.id, "full_name": user.full_name, "ip": None}, {"id": product_id, "name": product['name'], "price": product['price']}, tracking_data, {"created_at": order_ts}))
     
-    asyncio.create_task(utmfy.send_order(
-        order_id=identifier,
-        status="waiting_payment",
-        user_data=user_info,
-        product_data=product_info,
-        tracking_data=tracking_data,
-        transaction_data=tx_data
-    ))
+    # Log Abandonment & Start Smart Recovery
+    asyncio.create_task(asyncio.to_thread(database.log_abandoned_checkout, user.id, product_id, bot_id, metadata=tracking_data))
+    b_reminders[user.id] = asyncio.create_task(run_reminder(user.id, query.message.chat_id, context, bot_id, product_id))
 
-    # TikTok InitiateCheckout Event
-    tiktok_user_info = {
-        "full_name": user.full_name,
-        "tracking_data": tracking_data
-    }
-    tiktok_props = {
-        "contents": [{"content_id": product_id, "content_name": product['name']}],
-        "value": product['price'],
-        "currency": "BRL"
-    }
-    asyncio.create_task(tiktok.send_tiktok_event("InitiateCheckout", user_id, tiktok_user_info, tiktok_props, event_id=identifier))
-
-    pix_data = await gateway.create_payment(
-        identifier=identifier,
-        amount=product['price'],
-        client_name=user.full_name or "Cliente Telegram",
-        client_email=client_email,
-        client_phone="(11) 99999-9999", # Placeholder
-        client_document="12345678909", # Placeholder
-        product_title=product['name'],
-        metadata=tracking_data # Pass tracking metadata for webhook usage
-    )
+    pix_data = await gateway.create_payment(identifier, product['price'], user.full_name or "Cliente", f"u{user.id}@tg.com", "(11)999999999", "12345678909", product['name'], tracking_data)
 
     if pix_data:
-        print(f"[DEBUG] Pix gerado com sucesso!")
-        # Log transaction to database with tracking metadata and synchronized timestamp
-        database.log_transaction(
-            identifier=identifier,
-            user_id=user_id,
-            product_id=product_id,
-            amount=product['price'],
-            status='pending',
-            client_email=client_email,
-            metadata=tracking_data,
-            created_at=order_ts
-        )
+        database.log_transaction(identifier, user.id, product_id, product['price'], 'pending', metadata=tracking_data, created_at=order_ts, bot_id=bot_id)
+        pix_key = pix_data['pix']['code']
+        qr = qrcode.make(pix_key)
+        bio = io.BytesIO(); bio.name = 'qr.png'; qr.save(bio, 'PNG'); bio.seek(0)
+        await query.message.reply_photo(bio, caption="Seu QR Code 🚀")
+        await query.message.reply_text(f"`{pix_key}`", parse_mode='Markdown')
+        await query.message.reply_text("Aguardando confirmação...", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Confirmar", callback_data=f'confirm_pay_{product_id}_{identifier}')]]))
     else:
-        print(f"[DEBUG] FALHA na geração do Pix via Babylon.")
-
-    if not pix_data:
-        await query.message.reply_text("❌ Desculpe, ocorreu um erro ao gerar seu Pix. Por favor, tente novamente mais tarde ou contate o suporte.")
-        return
-
-    pix_key = pix_data['pix']['code']
-    qr_image_url = pix_data['pix'].get('image')
-    qr_base64 = pix_data['pix'].get('base64')
-
-    # 2. Segunda mensagem: Instruções + Chave
-    msg_instrucoes = (
-        "✅ Prontinho\n\n"
-        "Escaneie o QR Code acima 👆 ou utilize a opção PIX Copia e Cola no seu aplicativo bancário.\n\n"
-        "Para copiar a chave, clique nela abaixo ⬇️"
-    )
-    
-    # Enviar QR Code (Prioritize URL or Base64 if available, fallback to local generation if needed)
-    if qr_image_url:
-        await query.message.reply_photo(photo=qr_image_url, caption="Seu QR Code para pagamento 🚀")
-    elif qr_base64 and qr_base64.startswith("data:image"):
-        # Decode base64 if needed, but usually photo=base64 doesn't work directly in telegram-python-bot easily without buffer
-        # For simplicity, if we have the code, we can regenerate it locally to be safe
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(pix_key)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        bio = io.BytesIO()
-        bio.name = 'qrcode.png'
-        img.save(bio, 'PNG')
-        bio.seek(0)
-        await query.message.reply_photo(photo=bio, caption="Seu QR Code para pagamento 🚀")
-    else:
-        # Fallback local generation
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(pix_key)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        bio = io.BytesIO()
-        bio.name = 'qrcode.png'
-        img.save(bio, 'PNG')
-        bio.seek(0)
-        await query.message.reply_photo(photo=bio, caption="Seu QR Code para pagamento 🚀")
-    
-    await query.message.reply_text(msg_instrucoes)
-    
-    # Envia a chave Pix separada e formatada como código para facilitar a cópia
-    await query.message.reply_text(f"`{pix_key}`", parse_mode='Markdown')
-    
-    # 3. Terceira mensagem: Importante + Botão Confirmar
-    keyboard = [
-        [InlineKeyboardButton("✅ Confirmar Pagamento", callback_data=f'confirm_pay_{product_id}_{identifier}')],
-        [InlineKeyboardButton("🔙 Cancelar", callback_data='main_menu')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    msg_importante = (
-        "⚠️ Importante! Após o pagamento, o acesso é liberado automaticamente.\n\n"
-        "🕑 Aguarde alguns instantes para que nosso sistema receba a confirmação do seu pagamento pelo banco.\n\n"
-        "Caso não receba o link automaticamente em alguns minutos, clique no botão \"Confirmar Pagamento\" abaixo ⬇️."
-    )
-    await query.message.reply_text(msg_importante, reply_markup=reply_markup)
-    
-    # 4. Quarta mensagem: Suporte
-    support_user = database.get_setting("support_user", "@SeuUsuarioTelegram")
-    await query.message.reply_text(f"📱 Se precisar, contate {support_user} para atendimento e suporte")
-
-async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Simulates payment confirmation."""
-    query = update.callback_query
-    data_parts = query.data.split('_')
-    # Format: confirm_pay_{product_id}_{identifier}
-    if len(data_parts) >= 4:
-        identifier = data_parts[3]
-        database.confirm_transaction(identifier)
-        print(f"[DEBUG] Transaction {identifier} confirmed by user button.")
-
-    keyboard = [[InlineKeyboardButton("🔙 Voltar ao Menu", callback_data='main_menu')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.callback_query.edit_message_text(
-        text="✅ **Pagamento Informado!**\n\n"
-             "Vou verificar seu pagamento e te envio o conteúdo em instantes! 😘\n"
-             "Caso demore, chame no suporte.",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
-
-async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Support information."""
-    keyboard = [[InlineKeyboardButton("🔙 Voltar ao Menu", callback_data='main_menu')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    support_user = database.get_setting("support_user", "@SeuUsuarioTelegram")
-    await update.callback_query.edit_message_text(
-        text="💬 **Suporte**\n\n"
-             "Teve algum problema? Quer algo personalizado?\n"
-             f"Entre em contato comigo: {support_user}",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
+        await query.message.reply_text("❌ Erro ao gerar Pix.")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Router for callback queries."""
     if await check_maintenance(update): return
     query = update.callback_query
     await query.answer()
+    data, user_id, bot_id = query.data, update.effective_user.id, context.application.bot_data.get("bot_id")
     
-    data = query.data
-    
-    # Cancel inactivity reminder if user interacts
-    user_id = update.effective_user.id
-    if user_id in pending_reminders:
-        print(f"[DEBUG] Interaction detected. Cancelling reminder for user {user_id}")
-        pending_reminders[user_id].cancel()
-        del pending_reminders[user_id]
+    b_reminders = pending_reminders.get(bot_id, {})
+    if user_id in b_reminders:
+        b_reminders[user_id].cancel()
+        del b_reminders[user_id]
 
-    if data == 'verify_age_yes':
-        await main_menu(update, context)
-    elif data == 'verify_age_no':
-        await query.edit_message_text("Desculpe, este conteúdo não é para você. 🚫")
-    elif data == 'main_menu':
-        await main_menu(update, context)
-    elif data == 'list_products':
-        await show_products(update, context)
-    elif data == 'support':
-        await support(update, context)
+    if data == 'main_menu': await start(update, context) # Simplied fallback
+    elif data == 'list_products': await show_products(update, context)
     elif data.startswith('prod_'):
-        product_id = data.split('_')[1]
-        await product_detail(update, context, product_id)
+        pid = data.split('_')[1]
+        product = get_products().get(pid)
+        if product:
+            btn = [[InlineKeyboardButton("💳 Comprar", callback_data=f'buy_{pid}')], [InlineKeyboardButton("🔙 Voltar", callback_data='list_products')]]
+            await query.edit_message_text(f"🔞 **{product['name']}**\n\n{product['desc']}\n💰 R${product['price']:.2f}", reply_markup=InlineKeyboardMarkup(btn), parse_mode='Markdown')
     elif data == "ver_planos":
-        asyncio.create_task(asyncio.to_thread(database.track_event, user_id, 'view_plans'))
+        asyncio.create_task(asyncio.to_thread(database.track_event, user_id, 'view_plans', bot_id=bot_id))
         await show_products(update, context)
     elif data.startswith('buy_'):
-        product_id = data.replace('buy_', '', 1)
-        asyncio.create_task(asyncio.to_thread(database.track_event, user_id, 'checkout'))
-        await handle_purchase(update, context, product_id)
+        pid = data.replace('buy_', '', 1)
+        asyncio.create_task(asyncio.to_thread(database.track_event, user_id, 'checkout', bot_id=bot_id))
+        await handle_purchase(update, context, pid)
     elif data.startswith('confirm_pay_'):
-        await confirm_payment(update, context)
-    elif data == 'my_orders':
-        # Placeholder for order history
-        await query.answer("Você ainda não possui compras confirmadas.", show_alert=True)
-    elif data == 'back_to_start':
-        await start(update, context)
+        ident = data.split('_')[3]
+        database.confirm_transaction(ident)
+        await query.edit_message_text("✅ Pagamento informado! Enviando conteúdo...")
 
-
-async def bot_heartbeat(context: ContextTypes.DEFAULT_TYPE):
-    """Periodically updates the bot status in the DB."""
-    while True:
-        try:
-            database.set_setting("bot_last_heartbeat", str(datetime.now(timezone.utc).timestamp()))
-            me = await context.bot.get_me()
-            database.set_setting("bot_username", f"@{me.username}")
-        except Exception as e:
-            print(f"[ERROR] Heartbeat failed: {e}")
-        await asyncio.sleep(60)
-
-async def post_init(application):
-    """Tasks to run after bot is initialized."""
-    # Set bot commands
-    commands = [
-        BotCommand("start", "Iniciar o robô"),
-        BotCommand("ajuda", "Ver ajuda")
-    ]
-    await application.bot.set_my_commands(commands)
+async def setup_bot(bot_token: str, bot_id: str):
+    app = ApplicationBuilder().token(bot_token).build()
+    app.bot_data["bot_id"] = bot_id
     
-    # Start heartbeat in the background
-    asyncio.create_task(bot_heartbeat(ContextTypes.DEFAULT_TYPE(application)))
-    print("✅ Bot Heartbeat & Commands configured.")
-
-def start_bot():
-    """Build and return the bot application."""
-    app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
-
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('iniciar', start))
     app.add_handler(CallbackQueryHandler(button_handler))
-
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_ai_chat))
+    
+    # Set commands
+    try:
+        await app.bot.set_my_commands([BotCommand("start", "Iniciar"), BotCommand("iniciar", "Iniciar")])
+    except: pass
+    
     return app
 
-if __name__ == '__main__':
-    from telegram.error import NetworkError, Conflict
-    import time
-
-    backoff = 1
+async def run_bot_instance(bot_config):
     while True:
         try:
-            application = start_bot()
-            print("Bot Kamy is starting polling...")
-            application.run_polling(drop_pending_updates=True)
-        except Conflict:
-            print("⚠️ Conflito Detectado: Outra instância está rodando. Aguardando 10s...")
-            time.sleep(10)
-        except NetworkError:
-            print(f"⚠️ Erro de Rede: Falha na conexão. Tentando novamente em {backoff}s...")
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 60) # Exponential backoff max 60s
+            app = await setup_bot(bot_config['token'], bot_config['id'])
+            logger.info(f"Starting bot: {bot_config['username']} ({bot_config['name']})")
+            await app.initialize()
+            await app.start()
+            
+            # Start Recovery Worker
+            recovery_task = asyncio.create_task(run_recovery_worker(bot_config['id'], app))
+            
+            # Manual polling loop to handle conflicts gracefully
+            updater = app.updater
+            await updater.start_polling(drop_pending_updates=True)
+            # Keep running until cancelled or bot is deactivated
+            while True:
+                await asyncio.sleep(10)
+                # Check if bot still active in DB
+                all_bots = await asyncio.to_thread(database.get_all_managed_bots)
+                current = next((b for b in all_bots if b['id'] == bot_config['id']), None)
+                if not current or not current['is_active']:
+                    logger.info(f"Bot {bot_config['name']} deactivated, stopping...")
+                    recovery_task.cancel()
+                    await updater.stop()
+                    await app.stop()
+                    await app.shutdown()
+                    return
         except Exception as e:
-            print(f"💥 Erro Inesperado: {e}. Reiniciando em 5s...")
-            time.sleep(5)
-        else:
-            # Se sair normalmente (o que não deve acontecer no polling), reseta o backoff
-            backoff = 1
+            logger.error(f"Error in bot {bot_config['name']}: {e}")
+            if 'recovery_task' in locals(): recovery_task.cancel()
+            await asyncio.sleep(10)
+
+async def main():
+    managed_tasks = {} # {bot_id: Task}
+    
+    while True:
+        try:
+            active_bots = await asyncio.to_thread(database.get_all_managed_bots)
+            active_bots = [b for b in active_bots if b['is_active']]
+            
+            # Start new bots
+            for bot in active_bots:
+                if bot['id'] not in managed_tasks:
+                    managed_tasks[bot['id']] = asyncio.create_task(run_bot_instance(bot))
+            
+            # Cleanup removed bots from task list (run_bot_instance handles shutdown for 'inactive' flag)
+            to_remove = [bid for bid in managed_tasks if not any(b['id'] == bid for b in active_bots)]
+            for bid in to_remove:
+                managed_tasks[bid].cancel()
+                del managed_tasks[bid]
+            
+            # If no bots found and TELEGRAM_TOKEN exists in .env, add it as a managed bot automatically
+            if not active_bots and os.getenv("TELEGRAM_TOKEN"):
+                logger.info("No managed bots found. Adding default TELEGRAM_TOKEN from .env")
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    token = os.getenv("TELEGRAM_TOKEN")
+                    res = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+                    info = res.json()
+                    if info.get("ok"):
+                        database.add_managed_bot(token, "Default Bot", "@" + info["result"]["username"])
+
+        except Exception as e:
+            logger.error(f"Main loop error: {e}")
+        
+        await asyncio.sleep(30)
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

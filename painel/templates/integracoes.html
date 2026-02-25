@@ -11,7 +11,7 @@
     <style>
         .main-content { margin-left: 260px; padding: 2rem 3rem; width: 100%; max-width: 1200px; transition: margin 0.3s; }
         header { margin-bottom: 2.5rem; }
-        h1 { font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, var(--text-main), var(--primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+        h1 { font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, var(--text-main), var(--primary)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
         p { color: var(--text-dim); margin-top: 0.5rem; }
 
         .integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 2rem; }
@@ -134,6 +134,35 @@
                     </div>
                     <button type="submit" class="btn-save">
                         <i data-lucide="save"></i> Salvar Configuração
+                    </button>
+                </form>
+            </div>
+
+            <!-- OpenAI API Card -->
+            <div class="int-card" style="border-color: rgba(0, 166, 126, 0.2);">
+                <div class="card-header">
+                    <div class="icon-box" style="background: rgba(0, 166, 126, 0.1); color: #00a67e;"><i data-lucide="brain-circuit"></i></div>
+                    <div>
+                        <h2 style="margin:0; font-size: 1.2rem;">Kamylinha AI (OpenAI)</h2>
+                        <span style="font-size: 0.8rem; color: var(--text-dim);">Personalidade & Objeções</span>
+                    </div>
+                    {% if openai_token %}
+                    <span class="status-badge status-active">Conectado</span>
+                    {% else %}
+                    <span class="status-badge status-pending">Pendente</span>
+                    {% endif %}
+                </div>
+                
+                <p class="desc">Dê vida à Kamylinha. Com a API da OpenAI, seu bot pode conversar naturalmente, tirar dúvidas e contornar objeções de venda ("está caro", "funciona?") usando IA.</p>
+
+                <form action="/api/integrations/update" method="post">
+                    <input type="hidden" name="type" value="openai">
+                    <div class="form-group">
+                        <label>OPENAI API KEY</label>
+                        <input type="password" name="api_token" value="{{ openai_token or '' }}" placeholder="sk-...">
+                    </div>
+                    <button type="submit" class="btn-save" style="background: #00a67e;">
+                        <i data-lucide="save"></i> Salvar Chave API
                     </button>
                 </form>
             </div>

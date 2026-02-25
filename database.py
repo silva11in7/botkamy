@@ -38,14 +38,15 @@ def init_db():
     pass
 
 # --- User & Transaction Helpers ---
-def log_user(user_id: int, username: str, full_name: str, tracking_data: Optional[Dict[str, Any]] = None):
+def log_user(user_id: int, username: str, full_name: str, tracking_data: Optional[Dict[str, Any]] = None, bot_id: str = None):
     supabase = get_supabase()
     if not supabase: return
     data = {
         "id": user_id,
         "username": username,
         "full_name": full_name,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "bot_id": bot_id
     }
     
     if tracking_data:
@@ -53,6 +54,11 @@ def log_user(user_id: int, username: str, full_name: str, tracking_data: Optiona
         for key in ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ttclid"]:
             if key in tracking_data:
                 data[key] = tracking_data[key]
+    
+    try:
+        supabase.table("users").upsert(data).execute()
+    except Exception as e:
+        logger.error(f"Error logging user {user_id}: {e}")
                 
 def get_user(user_id: int) -> Optional[Dict[str, Any]]:
     supabase = get_supabase()
@@ -64,7 +70,7 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
         logger.error(f"Error fetching user {user_id}: {e}")
         return None
 
-def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None, metadata: Optional[Dict[str, Any]] = None, created_at: str = None):
+def log_transaction(identifier: str, user_id: int, product_id: str, amount: float, status: str = 'pending', payment_method: str = 'PIX', client_email: str = None, metadata: Optional[Dict[str, Any]] = None, created_at: str = None, bot_id: str = None):
     supabase = get_supabase()
     if not supabase: return
     data = {
@@ -76,7 +82,8 @@ def log_transaction(identifier: str, user_id: int, product_id: str, amount: floa
         "payment_method": payment_method,
         "client_email": client_email,
         "created_at": created_at or datetime.now(timezone.utc).isoformat(),
-        "metadata": metadata or {}
+        "metadata": metadata or {},
+        "bot_id": bot_id
     }
     supabase.table("transactions").insert(data).execute()
 
@@ -219,13 +226,14 @@ def get_revenue_stats(days: int = 7):
         return []
 
 # --- V3: Funnel & Analytics ---
-def track_event(user_id: int, event_type: str):
+def track_event(user_id: int, event_type: str, bot_id: str = None):
     supabase = get_supabase()
     if not supabase: return
     try:
         supabase.table("funnel_events").insert({
             "user_id": user_id,
-            "event_type": event_type
+            "event_type": event_type,
+            "bot_id": bot_id
         }).execute()
     except Exception as e:
         logger.error(f"Error tracking event: {e}")
@@ -486,3 +494,124 @@ def delete_gateway(gw_id: str):
     except Exception as e:
         logger.error(f"Error deleting gateway: {e}")
         return False
+def get_all_managed_bots():
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        response = supabase.table("managed_bots").select("*").order("created_at").execute()
+        return response.data or []
+    except Exception as e:
+        logger.error(f"Error fetching managed bots: {e}")
+        return []
+
+def add_managed_bot(token: str, name: str, username: str = None):
+    supabase = get_supabase()
+    if not supabase: return None
+    try:
+        response = supabase.table("managed_bots").insert({
+            "token": token,
+            "name": name,
+            "username": username,
+            "is_active": True
+        }).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        logger.error(f"Error adding managed bot: {e}")
+        return None
+
+def update_managed_bot(bot_id: str, data: dict):
+    supabase = get_supabase()
+    if not supabase: return False
+    try:
+        supabase.table("managed_bots").update(data).eq("id", bot_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error updating managed bot {bot_id}: {e}")
+        return False
+
+def delete_managed_bot(bot_id: str):
+    supabase = get_supabase()
+    if not supabase: return False
+    try:
+        supabase.table("managed_bots").delete().eq("id", bot_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting managed bot {bot_id}: {e}")
+        return False
+
+def get_ai_history(bot_id: str, user_id: int, limit: int = 10):
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        response = supabase.table("ai_chat_history").select("*").eq("bot_id", bot_id).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+        # Invert to chronological order
+        return sorted(response.data, key=lambda x: x['created_at']) if response.data else []
+    except Exception as e:
+        logger.error(f"Error fetching AI history: {e}")
+        return []
+
+def add_ai_history(bot_id: str, user_id: int, role: str, content: str):
+    supabase = get_supabase()
+    if not supabase: return
+    try:
+        supabase.table("ai_chat_history").insert({
+            "bot_id": bot_id,
+            "user_id": user_id,
+            "role": role,
+            "content": content
+        }).execute()
+    except Exception as e:
+        logger.error(f"Error adding AI history: {e}")
+
+def update_bot_ai(bot_id: str, ai_enabled: bool, system_prompt: str):
+    return update_managed_bot(bot_id, {"ai_enabled": ai_enabled, "system_prompt": system_prompt})
+
+def log_abandoned_checkout(user_id: int, product_id: str, bot_id: str, metadata: dict = None):
+    supabase = get_supabase()
+    if not supabase: return
+    try:
+        supabase.table("abandoned_checkouts").insert({
+            "user_id": user_id,
+            "product_id": product_id,
+            "bot_id": bot_id,
+            "metadata": metadata,
+            "status": "pending",
+            "last_stage": 0
+        }).execute()
+    except Exception as e:
+        logger.error(f"Error logging abandoned checkout: {e}")
+
+def update_abandoned_checkout(user_id: int, bot_id: str, status: str = None, last_stage: int = None):
+    supabase = get_supabase()
+    if not supabase: return
+    try:
+        data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+        if status: data["status"] = status
+        if last_stage is not None: data["last_stage"] = last_stage
+        
+        supabase.table("abandoned_checkouts").update(data).eq("user_id", user_id).eq("bot_id", bot_id).eq("status", "pending").execute()
+    except Exception as e:
+        logger.error(f"Error updating abandoned checkout: {e}")
+
+def get_pending_abandoned(bot_id: str):
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        res = supabase.table("abandoned_checkouts").select("*").eq("bot_id", bot_id).eq("status", "pending").execute()
+        return res.data if res.data else []
+    except Exception as e:
+        logger.error(f"Error fetching pending abandoned: {e}")
+        return []
+
+def get_abandoned_checkouts(bot_id: str = None, limit: int = 50):
+    supabase = get_supabase()
+    if not supabase: return []
+    try:
+        query = supabase.table("abandoned_checkouts").select("*, managed_bots(name)").order("created_at", desc=True).limit(limit)
+        if bot_id:
+            query = query.eq("bot_id", bot_id)
+        res = query.execute()
+        return res.data if res.data else []
+    except Exception as e:
+        logger.error(f"Error fetching abandoned checkouts: {e}")
+        return []

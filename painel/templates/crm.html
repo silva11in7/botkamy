@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Dashboard | Kamy Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/global.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/global.js"></script>
+    <style>
+        .crm-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stat-card h4 { color: var(--text-dim); font-size: 0.8rem; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card span { font-size: 1.8rem; font-weight: 800; color: var(--primary); }
+
+        .lead-table-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            overflow: hidden;
+        }
+
+        .lead-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .lead-table th { padding: 1.2rem; background: rgba(255,255,255,0.03); color: var(--text-dim); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
+        .lead-table td { padding: 1.2rem; border-top: 1px solid var(--border); font-size: 0.9rem; }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .status-pending { background: rgba(255, 165, 0, 0.1); color: orange; border: 1px solid rgba(255, 165, 0, 0.2); }
+        .status-recovered { background: rgba(0, 166, 126, 0.1); color: #00a67e; border: 1px solid rgba(0, 166, 126, 0.2); }
+        .status-failed { background: rgba(255, 71, 87, 0.1); color: #ff4757; border: 1px solid rgba(255, 71, 87, 0.2); }
+
+        .stage-indicator {
+            display: flex;
+            gap: 4px;
+        }
+
+        .stage-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            background: var(--border);
+        }
+
+        .stage-dot.filled { background: var(--primary); box-shadow: 0 0 5px var(--primary); }
+    </style>
+</head>
+<body>
+    {% include 'base_sidebar.html' %}
+
+    <main class="main">
+        <header style="margin-bottom: 2rem;">
+            <h1 style="margin:0; font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, var(--text-main), var(--primary)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Elite CRM Insight</h1>
+            <p style="color:var(--text-dim);">Acompanhe a jornada de recuperação dos seus leads em tempo real.</p>
+        </header>
+
+        <div class="crm-stats">
+            <div class="stat-card">
+                <h4>Total Abandonos</h4>
+                <span>{{ checkouts | length }}</span>
+            </div>
+            <div class="stat-card">
+                <h4>Recuperados (ROI)</h4>
+                <span>{{ checkouts | selectattr('status', 'equalto', 'recovered') | list | length }}</span>
+            </div>
+            <div class="stat-card">
+                <h4>Taxa de Conversão</h4>
+                {% set total = checkouts | length %}
+                {% set recovered = checkouts | selectattr('status', 'equalto', 'recovered') | list | length %}
+                <span>{{ (recovered / total * 100) | round(1) if total > 0 else 0 }}%</span>
+            </div>
+        </div>
+
+        <div class="lead-table-container">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Usuário (ID)</th>
+                        <th>Bot Responsável</th>
+                        <th>Produto</th>
+                        <th>Status</th>
+                        <th>Estágio Atual</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rec in checkouts %}
+                    <tr>
+                        <td>
+                            <div style="font-weight: 700;">{{ rec.user_id }}</div>
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i data-lucide="bot" style="width:14px; color: var(--primary);"></i>
+                                {{ rec.managed_bots.name }}
+                            </div>
+                        </td>
+                        <td>{{ rec.product_id }}</td>
+                        <td>
+                            <span class="status-badge status-{{ rec.status }}">
+                                {{ 'Pendente' if rec.status == 'pending' else 'Recuperado' if rec.status == 'recovered' else 'Falhou' }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <div class="stage-indicator">
+                                    <div class="stage-dot {{ 'filled' if rec.last_stage >= 1 }}"></div>
+                                    <div class="stage-dot {{ 'filled' if rec.last_stage >= 2 }}"></div>
+                                    <div class="stage-dot {{ 'filled' if rec.last_stage >= 3 }}"></div>
+                                    <div class="stage-dot {{ 'filled' if rec.last_stage >= 4 }}"></div>
+                                </div>
+                                <span style="font-size: 0.7rem; color: var(--text-dim);">
+                                    {{ 'Aguardando 10m' if rec.last_stage == 0 else 'Vídeo Enviado' if rec.last_stage == 1 else 'Áudio Enviado' if rec.last_stage == 2 else 'Cupom 50% Enviado' if rec.last_stage == 3 else 'Retargeting Finalizado' }}
+                                </span>
+                            </div>
+                        </td>
+                        <td style="color: var(--text-dim); font-size: 0.8rem;">
+                            {{ rec.created_at[:10] }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not checkouts %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 4rem; color: var(--text-dim);">
+                            Nenhum lead no funil de recuperação ainda.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+</body>
+</html>

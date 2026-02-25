@@ -134,6 +134,12 @@ async def funnel_page(request: Request):
     stats = database.get_funnel_stats()
     return templates.TemplateResponse("funil.html", {"request": request, "stats": stats, "active_page": "funil"})
 
+@app.get("/bots", response_class=HTMLResponse)
+async def bots_page(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    bots = database.get_all_managed_bots()
+    return templates.TemplateResponse("bots.html", {"request": request, "bots": bots, "active_page": "bots"})
+
 # Vendas Page
 @app.get("/vendas", response_class=HTMLResponse)
 async def vendas(request: Request):
@@ -201,12 +207,56 @@ async def comms_page(request: Request):
     user_count = database.get_metrics()['total_users']
     return templates.TemplateResponse("comunicacao.html", {"request": request, "user_count": user_count, "active_page": "comunicacao"})
 
-@app.post("/broadcast")
-async def send_broadcast(request: Request, message: str = Form(...)):
-    if not get_current_user(request): return RedirectResponse(url="/")
-    # In a real app, we would loop through all users and use the bot to send.
-    logger.info(f"BROADCAST triggered for all users: {message}")
-    return RedirectResponse(url="/comunicacao", status_code=status.HTTP_303_SEE_OTHER)
+@app.post("/api/broadcast")
+async def api_broadcast(
+    request: Request, 
+    bot_id: str = Form(...), 
+    message: str = Form(...),
+    media_type: str = Form("text"), # text, photo, video
+    media_url: Optional[str] = Form(None)
+):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    # Get all users for this bot
+    users = database.get_all_users() # Or filter by bot if tracked
+    bot_config = next((b for b in database.get_all_managed_bots() if b['id'] == bot_id), None)
+    
+    if not bot_config:
+        return JSONResponse({"error": "Bot não encontrado"}, status_code=404)
+
+    # Note: In a heavy production environment, this should be a background task/queue.
+    # For this elite version, we use a simple loop with asyncio.
+    from telegram import Bot
+    tg_bot = Bot(token=bot_config['token'])
+    
+    success_count = 0
+    fail_count = 0
+    
+    async def send_to_user(u_id):
+        nonlocal success_count, fail_count
+        try:
+            if media_type == "photo" and media_url:
+                await tg_bot.send_photo(chat_id=u_id, photo=media_url, caption=message, parse_mode='Markdown')
+            elif media_type == "video" and media_url:
+                # Video URLs must be direct or we send local file
+                await tg_bot.send_video(chat_id=u_id, video=media_url, caption=message, parse_mode='Markdown')
+            else:
+                await tg_bot.send_message(chat_id=u_id, text=message, parse_mode='Markdown')
+            success_count += 1
+        except Exception as e:
+            logger.error(f"Broadcast fail for user {u_id}: {e}")
+            fail_count += 1
+
+    # Chunking to avoid rate limits/timeouts
+    for i in range(0, len(users), 20):
+        chunk = users[i:i+20]
+        await asyncio.gather(*(send_to_user(u['id']) for u in chunk))
+        await asyncio.sleep(1) # Small pause
+    
+    return JSONResponse({
+        "status": "ok", 
+        "summary": f"Enviado com sucesso para {success_count} usuários. Falhas: {fail_count}"
+    })
 
 # **NOVO V3: Editor de Conteúdo (No-Code)**
 # **NOVO V3: Editor de Conteúdo (No-Code)**
@@ -296,6 +346,59 @@ async def save_dashboard_layout(request: Request, data: dict = Body(...)):
         return JSONResponse({"status": "ok"})
     return JSONResponse({"error": "Missing layout"}, status_code=400)
 
+@app.post("/api/bots")
+async def add_bot(request: Request, data: dict = Body(...)):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    token = data.get("token")
+    name = data.get("name")
+    
+    if not token or not name:
+        return JSONResponse({"error": "Token e nome são obrigatórios"}, status_code=400)
+    
+    # Simple validation using Telegram API
+    import httpx
+    async with httpx.AsyncClient() as client:
+        try:
+            res = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            bot_info = res.json()
+            if not bot_info.get("ok"):
+                return JSONResponse({"error": "Token inválido ou bot não encontrado"}, status_code=400)
+            
+            username = "@" + bot_info["result"]["username"]
+            bot = database.add_managed_bot(token, name, username)
+            return JSONResponse({"status": "ok", "bot": bot})
+        except Exception as e:
+            return JSONResponse({"error": f"Erro ao validar token: {e}"}, status_code=500)
+
+@app.patch("/api/bots/{bot_id}/toggle")
+async def toggle_bot(bot_id: str, request: Request, data: dict = Body(...)):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    is_active = data.get("is_active")
+    if database.update_managed_bot(bot_id, {"is_active": is_active}):
+        return JSONResponse({"status": "ok"})
+    return JSONResponse({"error": "Falha ao atualizar"}, status_code=500)
+
+@app.delete("/api/bots/{bot_id}")
+async def delete_bot(bot_id: str, request: Request):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    if database.delete_managed_bot(bot_id):
+        return JSONResponse({"status": "ok"})
+    return JSONResponse({"error": "Falha ao deletar"}, status_code=500)
+
+@app.patch("/api/bots/{bot_id}/ai")
+async def update_bot_ai(bot_id: str, request: Request, data: dict = Body(...)):
+    if not get_current_user(request): return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    
+    ai_enabled = data.get("ai_enabled")
+    system_prompt = data.get("system_prompt")
+    
+    if database.update_bot_ai(bot_id, ai_enabled, system_prompt):
+        return JSONResponse({"status": "ok"})
+    return JSONResponse({"error": "Falha ao atualizar configurações de IA"}, status_code=500)
+
 # --- V3: Central de Mídia ---
 @app.get("/midia", response_class=HTMLResponse)
 async def media_manager(request: Request):
@@ -382,19 +485,31 @@ async def monitoramento_page(request: Request):
     if not get_current_user(request): return RedirectResponse(url="/")
     return templates.TemplateResponse("monitoramento.html", {"request": request, "active_page": "monitoramento"})
 
+@app.get("/crm", response_class=HTMLResponse)
+async def crm_page(request: Request):
+    if not get_current_user(request): return RedirectResponse(url="/")
+    checkouts = database.get_abandoned_checkouts()
+    return templates.TemplateResponse("crm.html", {
+        "request": request,
+        "active_page": "crm",
+        "checkouts": checkouts
+    })
+
 @app.get("/integracoes")
 async def integrations_page(request: Request):
     if not get_current_user(request): return RedirectResponse(url="/")
     utmfy_token = database.get_setting("utmfy_api_token")
     tiktok_token = database.get_setting("tiktok_api_token")
     tiktok_pixel = database.get_setting("tiktok_pixel_id")
+    openai_token = database.get_setting("openai_api_key")
     
     return templates.TemplateResponse("integracoes.html", {
         "request": request, 
         "active_page": "integracoes",
         "utmfy_token": utmfy_token,
         "tiktok_token": tiktok_token,
-        "tiktok_pixel": tiktok_pixel
+        "tiktok_pixel": tiktok_pixel,
+        "openai_token": openai_token
     })
 
 @app.post("/api/integrations/update")
@@ -414,6 +529,9 @@ async def update_integration(
         if pixel_id:
             database.set_setting("tiktok_pixel_id", pixel_id)
         logger.info(f"TikTok Settings updated via painel.")
+    elif type == "openai":
+        database.set_setting("openai_api_key", api_token)
+        logger.info(f"OpenAI API Key updated via painel.")
     
     return RedirectResponse(url="/integracoes", status_code=303)
 
@@ -574,6 +692,10 @@ async def receive_webhook(request: Request, data: dict = Body(...)):
             if tx:
                 user_id = tx.get("user_id")
                 db_user = database.get_user(user_id) if user_id else None
+                # Mark as recovered for CRM tracking
+                bot_id = tx.get("bot_id")
+                if user_id and bot_id:
+                    database.update_abandoned_checkout(user_id, bot_id, status="recovered")
                 
                 if db_user:
                     # Tracking data is in tx['metadata']
