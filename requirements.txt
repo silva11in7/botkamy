@@ -8,3 +8,4 @@ qrcode
 pillow
 python-dotenv
 supabase
+openai
